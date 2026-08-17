@@ -1,0 +1,141 @@
+---
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: string;
+  mission: any;
+}
+
+const { lang, mission } = Astro.props;
+const t = useTranslations(lang);
+const { data } = mission;
+---
+
+<div class="check-before">
+  {t('mission.checkBefore')}
+</div>
+
+<div class="tabs-container">
+  <nav class="tabs-nav" role="tablist">
+    <button class="tab-btn active" data-tab="map" data-sound="tab" role="tab" aria-selected="true">
+      {t('mission.mapSettings')}
+    </button>
+    <button class="tab-btn" data-tab="town" data-sound="tab" role="tab" aria-selected="false">
+      {t('mission.mainTown')}
+    </button>
+    <button class="tab-btn" data-tab="hero" data-sound="tab" role="tab" aria-selected="false">
+      {t('mission.mainHero')}
+    </button>
+    <button class="tab-btn" data-tab="ai" data-sound="tab" role="tab" aria-selected="false">
+      {t('mission.aiSettings')}
+    </button>
+    <button class="tab-btn" data-tab="win" data-sound="tab" role="tab" aria-selected="false">
+      {t('mission.winConditions')}
+    </button>
+  </nav>
+
+  <!-- MAP SETTINGS -->
+  <div class="tab-content active" id="tab-map" role="tabpanel">
+    <div class="settings-grid">
+      <div class="setting-row">
+        <span class="setting-label">{t('mission.starting')}</span>
+        <span class="setting-value">{data.mapSettings.starting}</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{t('mission.far')}</span>
+        <span class="setting-value">{data.mapSettings.far}</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{t('mission.near')}</span>
+        <span class="setting-value">{data.mapSettings.near}</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{t('mission.additional')}</span>
+        <span class="setting-value">{data.mapSettings.additional}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN TOWN -->
+  <div class="tab-content" id="tab-town" role="tabpanel">
+    <div class="settings-grid">
+      <div class="setting-row">
+        <span class="setting-label">{t('mission.buildings')}</span>
+        <span class="setting-value">{data.mainTown.buildings}</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{t('mission.production')}</span>
+        <span class="setting-value">{data.mainTown.production}</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{t('mission.startResources')}</span>
+        <span class="setting-value">{data.mainTown.startingResources}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN HERO -->
+  <div class="tab-content" id="tab-hero" role="tabpanel">
+    <div class="settings-grid">
+      <div class="setting-row">
+        <span class="setting-label">{t('mission.army')}</span>
+        <span class="setting-value">{data.mainHero.army}</span>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">{t('mission.handDeck')}</span>
+        <span class="setting-value">
+          <ul style="list-style:none; padding:0;">
+            {data.mainHero.handDeck.map((card: string) => (
+              <li style="padding:0.2rem 0;">• {card}</li>
+            ))}
+          </ul>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI SETTINGS -->
+  <div class="tab-content" id="tab-ai" role="tabpanel">
+    {data.aiSettings.map((ai: any) => (
+      <div class="ai-block">
+        <h4>{ai.name}</h4>
+        <div class="settings-grid">
+          <div class="setting-row">
+            <span class="setting-label">{t('mission.army')}</span>
+            <span class="setting-value">{ai.army}</span>
+          </div>
+          {ai.deck && (
+            <div class="setting-row">
+              <span class="setting-label">{t('mission.deck')}</span>
+              <span class="setting-value">{ai.deck}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <!-- WIN CONDITIONS -->
+  <div class="tab-content" id="tab-win" role="tabpanel">
+    <h3 style="color:var(--color-gold); margin-bottom:0.75rem;">{t('mission.goals')}</h3>
+    <ul class="conditions-list">
+      {data.goals.map((goal: string) => (
+        <li>{goal}</li>
+      ))}
+    </ul>
+
+    <h3 style="color:var(--color-gold); margin:1.5rem 0 0.75rem;">{t('mission.lose')}</h3>
+    <ul class="conditions-list lose">
+      {data.loseConditions.map((cond: string) => (
+        <li>{cond}</li>
+      ))}
+    </ul>
+
+    <h3 style="color:var(--color-gold); margin:1.5rem 0 0.75rem;">{t('mission.additionalRules')}</h3>
+    <ul class="conditions-list rules">
+      {data.additionalRules.map((rule: string) => (
+        <li>{rule}</li>
+      ))}
+    </ul>
+  </div>
+</div>
