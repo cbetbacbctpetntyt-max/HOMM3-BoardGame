@@ -1,0 +1,30 @@
+---
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: string;
+  events: Array<{ id: number; title: string; content: string }>;
+}
+
+const { lang, events } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="events-section">
+  <h2>📜 {t('mission.events')}</h2>
+
+  {events.map((event) => (
+    <article class="event-card" data-event-id={event.id}>
+      <div class="event-header" data-sound="click" role="button" tabindex="0" aria-expanded="false">
+        <span class="event-number">{event.id}</span>
+        <span class="event-title">{event.title}</span>
+        <span class="event-toggle">▼</span>
+      </div>
+      <div class="event-body">
+        {event.content.split('\n').filter(p => p.trim()).map((paragraph) => (
+          <p set:html={paragraph.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')} />
+        ))}
+      </div>
+    </article>
+  ))}
+</section>
