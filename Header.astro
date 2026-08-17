@@ -1,0 +1,16 @@
+---
+import LangSwitcher from './LangSwitcher.astro';
+
+interface Props {
+  lang: string;
+}
+
+const { lang } = Astro.props;
+---
+
+<header class="site-header">
+  <a href={`/${lang}/`} style="text-decoration:none;">
+    <h1>⚔ Heroes III — Scenarios</h1>
+  </a>
+  <LangSwitcher lang={lang} currentPath={Astro.url.pathname} />
+</header>
