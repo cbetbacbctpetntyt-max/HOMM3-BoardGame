@@ -1,0 +1,25 @@
+---
+import { languages } from '../i18n/ui';
+import { getOtherLang } from '../i18n/utils';
+
+interface Props {
+  lang: string;
+  currentPath: string;
+}
+
+const { lang, currentPath } = Astro.props;
+const otherLang = getOtherLang(lang);
+const otherPath = currentPath.replace(`/${lang}/`, `/${otherLang}/`);
+---
+
+<nav class="lang-switcher">
+  {Object.entries(languages).map(([code, name]) => (
+    <a
+      href={code === lang ? currentPath : currentPath.replace(`/${lang}/`, `/${code}/`)}
+      class:list={[{ active: code === lang }]}
+      data-sound="click"
+    >
+      {name}
+    </a>
+  ))}
+</nav>
