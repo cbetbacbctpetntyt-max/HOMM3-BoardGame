@@ -1,0 +1,85 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import MissionTabs from '../../../components/MissionTabs.astro';
+import EventsSection from '../../../components/EventsSection.astro';
+import { useTranslations } from '../../../i18n/utils';
+
+export async function getStaticPaths() {
+  const missions = await getCollection('missions');
+  return missions.map((mission) => ({
+    params: {
+      lang: mission.data.lang,
+      slug: mission.data.slug,
+    },
+    props: { mission },
+  }));
+}
+
+const { mission } = Astro.props;
+const { data } = mission;
+const lang = data.lang;
+const t = useTranslations(lang);
+---
+
+<BaseLayout lang={lang} title={data.title}>
+  <div class="mission-container">
+    <header class="mission-header">
+      <h1>{data.title}</h1>
+      <span class="difficulty">{t(`mission.difficulty.${data.difficulty}` as any)}</span>
+      <p class="description">{data.description}</p>
+    </header>
+
+    <MissionTabs lang={lang} mission={mission} />
+    <EventsSection lang={lang} events={data.events} />
+  </div>
+</BaseLayout>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabId = btn.getAttribute('data-tab');
+
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+      document.getElementById(`tab-${tabId}`)?.classList.add('active');
+    });
+  });
+
+  // Event accordion
+  document.querySelectorAll('.event-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const card = header.closest('.event-card');
+      const isOpen = card?.classList.contains('open');
+
+      card?.classList.toggle('open');
+      header.setAttribute('aria-expanded', String(!isOpen));
+    });
+  });
+
+  // Sound effects
+  const base = import.meta.env.BASE_URL;
+const clickSound = new Audio(base + 'audio/click.mp3');
+const tabSound = new Audio(base + 'audio/click.mp3');
+
+  document.querySelectorAll('[data-sound="click"]').forEach(el => {
+    el.addEventListener('click', () => {
+      clickSound.currentTime = 0;
+      clickSound.play().catch(() => {});
+    });
+  });
+
+  document.querySelectorAll('[data-sound="tab"]').forEach(el => {
+    el.addEventListener('click', () => {
+      tabSound.currentTime = 0;
+      tabSound.play().catch(() => {});
+    });
+  });
+</script>
