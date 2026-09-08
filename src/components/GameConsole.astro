@@ -1,0 +1,510 @@
+---
+interface Props { mission: any; lang: string; base: string; }
+const { mission, lang, base } = Astro.props;
+const d = mission.data;
+const ru = lang === 'ru';
+const ESC = Number(d.escalation || 0);
+
+const gc = ru ? {
+  round: 'РАУНД', resourceRound: 'РЕСУРСНЫЙ РАУНД', startRoundLbl: 'НАЧАЛЬНЫЙ РАУНД', astroRound: 'РАУНД АСТРОЛОГОВ',
+  yourTurn: 'ВАШ ХОД', aiTurn: 'ХОД ИИ',
+  btnHeroes: 'Информация', btnMap: 'Карта', btnAI: 'ИИ', btnEnd: 'Конец хода',
+  win: 'Условия победы(победить):', lose: 'Условия поражения:', add: 'Дополнительно:',
+  read: 'прочитано', close: 'Закрыть', toConsole: 'Вернуться назад',
+  endHint: 'Когда завершите ход, нажмите «Конец хода».',
+  winMsg: 'Поздравляю, вы победили. Следующий сценарий ждёт вас!',
+  obelisk: 'Захватите Обелиск до конца 4 раунда',
+  necro: 'Достигните Стартового Фрагмента Некрополь',
+  reward: 'Награда Сбережения Соледар — выберите:', lost: 'ВЫ ПРОИГРАЛИ',
+} : {
+  round: 'ROUND', resourceRound: 'RESOURCE ROUNDS', startRoundLbl: 'STARTING ROUND', astroRound: 'ASTROLOGERS ROUND',
+  yourTurn: 'PLAYER TURNS', aiTurn: 'AI TURN',
+  btnHeroes: 'Information', btnMap: 'Map', btnAI: 'AI', btnEnd: 'End Turn',
+  win: 'Win Conditions(defeat) :', lose: 'Lose Conditions :', add: 'Additional:',
+  read: 'read', close: 'Close', toConsole: 'Return back',
+  endHint: 'When you finish your turn, click End Turn.',
+  winMsg: 'Congratulations, you have won. The next scenario awaits you!',
+  obelisk: 'Capture the Obelisk before the end of round 4',
+  necro: 'Reach the Starting Necropolis Fragment',
+  reward: 'Soledare Savings reward — choose:', lost: 'YOU LOST',
+};
+
+const DIFF_NAMES = ru ? ['Лёгкий', 'Средний', 'Сложный', 'Невозможный'] : ['Easy', 'Medium', 'Hard', 'Impossible'];
+const DIFF_LINES = ru ? [
+  'бросьте 2 кубика [ресурсов] и получите ресурсы с обоих ИЛИ дважды совершите Поиск(2) в колоде артефактов',
+  'бросьте 2 кубика [ресурсов] и получите ресурсы с одного из них ИЛИ совершите Поиск(2) в колоде артефактов',
+  'бросьте 1 кубик [ресурсов] и получите ресурсы ИЛИ возьмите первый малый артефакт из колоды артефактов',
+  'не имеет бонусов',
+] : [
+  'roll 2 [Resource] dice and gain resources from both OR Search (2) twice in the Artifact deck',
+  'roll 2 [Resource] dice and gain resources from one of them OR Search (2) in the Artifact deck',
+  'roll 1 [Resource] dice and gain resources OR draw the first minor artifact from the Artifact deck',
+  'has no bonus',
+];
+const BONUS_LINES = ru ? ['+4 [руда]', '+2 [кристалы]', 'Ammo Cart War Machine'] : ['+4 [Ore]', '+2 [Crystals]', 'Ammo Cart War Machine'];
+
+const GOLD_ROUNDS = [5, 7];
+const MAX_ROUND = 11;
+
+const SCRIPT: Record<number, { player: string[]; ai: string[] }> = {
+  1: {
+    player: [],
+    ai: ru ? [
+      '- Раунд 1',
+      'Ходит ИИ. Правила перемещения и сражения смотри по кнопке ИИ',
+      'aislinn:- Ходит Армия Эйслин: 3 [очка перемещения] + 1 [очка перемещения] (Rogues)',
+      'galthran:- Ходит Армия Галтрана: 3 [очка перемещения]',
+      'Конец хода',
+    ] : [
+      '- Round 1',
+      'AI turns. For movement and combat rules, see the AI button.',
+      'aislinn:- Aislinn Army turns: 3 [Movement Points] + 1 [Movement Points] (Rogues)',
+      'galthran:- Galthran Army turns: 3 [Movement Points]',
+      'End of turn',
+    ],
+  },
+};
+for (let n = 2; n <= 11; n++) {
+  const astro = n % 2 === 0;
+  SCRIPT[n] = {
+    player: ru ? [
+      `- Раунд ${n} начался.`,
+      '- Можете сбросить необходимое количество карт с руки и взять столько же.',
+      astro ? '- Раунд Астрологов, возьмите карту Астрологов.' : '- Ресурсный Раунд, возьмите ресурсы.',
+      n < 5 ? '- Если вы захватите Обелиск или победите вражескую армию — подтвердите галочкой выполненных заданий внизу.' : '- Если вы победите вражескую армию — подтвердите галочкой выполненных заданий внизу.',
+      '- Не забудьте воспользоваться жетоном Найма, Постройки и Гильдии Магии.',
+      '- Таблицу Сложности можно посмотреть, щелкнув на кнопку Героя.',
+    ] : [
+      `- Round ${n} has begun.`,
+      '- You may discard the required number of cards from your hand and draw the same number.',
+      astro ? '- Astrologers Round: draw an Astrologers card.' : '- Resource Round: draw resources.',
+      n < 5 ? '- If you capture the Obelisk or defeat an enemy army, confirm it with a check mark below.' : '- If you defeat an enemy army, confirm it with a check mark below.',
+      "- Don't forget to use the Recruitment, Construction and Magic Guild tokens.",
+      '- The Difficulty Table can be viewed by clicking the Hero button.',
+    ],
+    ai: ru ? [
+      `- Раунд ${n}`,
+      'Ходит ИИ. Правила перемещения и сражения смотри по кнопке ИИ',
+      'aislinn:- Ходит Армия Эйслин: 3 [очка перемещения] + 1 [очка перемещения] (Rogues)',
+      'galthran:- Ходит Армия Галтрана: 3 [очка перемещения]',
+      'Конец хода',
+    ] : [
+      `- Round ${n}`,
+      'AI turns. For movement and combat rules, see the AI button.',
+      'aislinn:- Aislinn Army turns: 3 [Movement Points] + 1 [Movement Points] (Rogues)',
+      'galthran:- Galthran Army turns: 3 [Movement Points]',
+      'End of turn',
+    ],
+  };
+}
+---
+
+<main class="game-left" id="game-left" style="display:none">
+  <div class="round-head">
+    <div>
+      <h1 class="round-title" id="round-title">{gc.round} 1</h1>
+      <p class="round-sub" id="round-type">{gc.startRoundLbl}</p>
+      <p class="round-sub" id="phase-turn">{gc.yourTurn}</p>
+      <p class="round-sub diff" id="diff-line"></p>
+    </div>
+            <div class="tracker-wrap">
+      <div class="track-buttons">
+        <button class="track-btn" id="g-btn-heroes" title={gc.btnHeroes}><img src={base + 'images/ui/btn-heroes.png'} alt="⚔" onerror="this.outerHTML='⚔'" /></button>
+        <button class="track-btn" id="g-btn-map" title={gc.btnMap}><img src={base + 'images/ui/btn-map.png'} alt="🗺" onerror="this.outerHTML='🗺'" /></button>
+        <button class="track-btn" id="g-btn-ai" title={gc.btnAI}><img src={base + 'images/ui/btn-ai.png'} alt="💀" onerror="this.outerHTML='💀'" /></button>
+        <button class="track-btn" id="g-btn-end" title={gc.btnEnd}><img src={base + 'images/ui/btn-end.png'} alt="⏳" onerror="this.outerHTML='⏳'" /></button>
+      </div>
+      <div class="tracker">
+        <div class="track-row">{[1,3,5,7,9,11,13,15].map((n) => <span class="tcell" data-n={n}>{n}</span>)}</div>
+        <div class="track-row">{[2,4,6,8,10,12,14,16].map((n) => <span class="tcell" data-n={n}>{n}</span>)}</div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="console" id="console"></div>
+
+  <div class="conds-row">
+    <div>
+      <p class="col-head">{gc.win}</p>
+      <ul class="cond-col">
+        {d.goals.map((g: string, i: number) => (
+          <li><button class="cond-btn" data-cond={['aislinn', 'galthran', 'town'][i]}><span class="cond-ic">⊘</span><em>{g}</em></button></li>
+        ))}
+      </ul>
+    </div>
+    <div>
+      <p class="col-head">{gc.lose}</p>
+      <ul class="cond-col">
+        {d.loseConditions.map((g: string, i: number) => (
+          <li><button class="cond-btn" data-cond={['lose_town', 'lose_fight', 'lose_round'][i]}><span class="cond-ic">⊘</span><em>{g}</em></button></li>
+        ))}
+      </ul>
+    </div>
+    <div>
+      <p class="col-head">{gc.add}</p>
+      <ul class="cond-col">
+        <li><button class="cond-btn" data-cond="obelisk"><span class="cond-ic">⊘</span><em>{gc.obelisk}</em></button></li>
+        <li id="necro-row" hidden><button class="cond-btn" data-cond="necro"><span class="cond-ic">⊘</span><em>{gc.necro}</em></button></li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<aside class="events-panel" id="events-panel" style="display:none">
+  <div class="ep-title">{d.title}</div>
+  <div class="ep-list">
+    {d.events.map((ev: any, i: number) => (
+      <button class="ev-btn" data-ev={i}>
+        <span class="ev-ic">▶</span>
+        <span class="ev-name">{ev.title}</span>
+      </button>
+    ))}
+  </div>
+</aside>
+
+<div class="event-overlay" id="event-overlay" hidden>
+  <div class="eo-window">
+    <h3 id="eo-title"></h3>
+    <div class="eo-text" id="eo-text"></div>
+    <div class="eo-controls">
+      <button class="btn" id="eo-audio">🔊</button>
+      <button class="btn" id="eo-close">{gc.close}</button>
+    </div>
+  </div>
+</div>
+
+<div class="event-overlay" id="choice-overlay" hidden>
+  <div class="eo-window">
+    <h3>{gc.reward}</h3>
+    <div class="eo-controls" style="flex-direction:column;gap:10px">
+      <button class="btn" id="choice-ore">{ru ? '+4 [руда] и +2 к добыче руды' : '+4 [Ore] and +2 Ore income'}</button>
+      <button class="btn" id="choice-gold">{ru ? '+15 [золото] и +5 к добыче золота' : '+15 [Gold] and +5 Gold income'}</button>
+    </div>
+  </div>
+</div>
+
+<div class="event-overlay" id="defeat-overlay" hidden>
+  <div class="eo-window">
+    <h3>{gc.lost}</h3>
+    <video id="defeat-video" controls preload="auto" style="width:100%;max-height:60vh" src={base + 'video/defeat.mp4'}></video>
+    <div class="eo-controls">
+      <button class="btn" id="defeat-restart">{ru ? '↩ В начало' : '↩ To the beginning'}</button>
+      <button class="btn" id="defeat-sound">🔊</button>
+      <button class="btn" id="defeat-close">{gc.close}</button>
+    </div>
+  </div>
+</div>
+
+<div class="event-overlay" id="info-overlay" hidden>
+  <div class="eo-window">
+    <h3>{ru ? 'Информация' : 'Information'}</h3>
+    <img src={base + 'images/ui/info-' + lang + '.png'} alt="" style="width:100%" onerror="this.style.display='none'" />
+    <div class="eo-controls"><button class="btn" id="info-close">{gc.close}</button></div>
+  </div>
+</div>
+
+<div class="event-overlay" id="pdf-overlay" hidden>
+  <div class="eo-window pdf-win">
+    <iframe id="pdf-frame" src="" style="width:100%;border:none" title="AI rules"></iframe>
+    <p style="text-align:center;font-size:.85rem;color:#cfd6ff">{ru ? 'Если правил не видно — нажми ↗' : 'If the rules are not visible — press ↗'}</p>
+    <div class="eo-controls">
+      <button class="btn" id="pdf-open">↗</button>
+      <button class="btn" id="pdf-close">{gc.close}</button>
+    </div>
+  </div>
+</div>
+<button class="btn to-console" id="to-console" hidden>⌨ {gc.toConsole}</button>
+<button class="btn bgm-toggle" id="bgm-toggle" title="music">🔊</button>
+<audio id="bgm" loop src={base + 'audio/bgm.mp3'}></audio>
+<audio id="ev-audio"></audio>
+
+<script define:vars={{ events: d.events, goals: d.goals, lang, base, gc, SCRIPT, DIFF_NAMES, DIFF_LINES, BONUS_LINES, MAX_ROUND, ESC }}>
+  let round = 1;
+  let phase = 'player';
+  const st = { diff: 0, bonus: 0 };
+  const read = new Set();
+  const fired = new Set();
+  const done = new Set();
+  const consoleEl = document.getElementById('console');
+  const overlay = document.getElementById('event-overlay');
+  const audio = document.getElementById('ev-audio');
+  const diffLine = document.getElementById('diff-line');
+  const roundType = document.getElementById('round-type');
+
+  const clickS = new Audio(base + 'audio/click.mp3');
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('button, a.flag')) { clickS.currentTime = 0; clickS.play().catch(() => {}); }
+  }, true);
+
+  const ICONS = { 'золото': 'gold.png', 'gold': 'gold.png', 'руда': 'ore.png', 'оре': 'ore.png', 'руды': 'ore.png', 'кристалы': 'crystal.png', 'crystals': 'crystal.png', 'кристала': 'crystal.png', 'ресурсов': 'dice.png', 'resource': 'dice.png', 'очка перемещения': 'move.png', 'movement points': 'move.png', 'очка передвижения': 'move.png' };
+  function icons(html) {
+    return String(html).replace(/\[([^\]]+)\]/g, (m, t) => {
+      const k = String(t).toLowerCase().trim();
+      return ICONS[k] ? `<img class="cl-ic" src="${base}images/ui/${ICONS[k]}" alt="">` : m;
+    });
+  }
+  function line(html, cls = '') {
+    const p = document.createElement('p');
+    p.className = 'cl ' + cls;
+    p.innerHTML = icons(html);
+    consoleEl.appendChild(p);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+    function armyName(i) {
+    const g = String(goals[i] || '');
+    let m = g.match(/Арми\w+\s+(.+)$/i);
+    if (m) return m[1].trim();
+    m = g.match(/^(.+?)\s+Army$/i);
+    if (m) return m[1].replace(/^(Defeat|Fight)\s+(the\s+)?/i, '').trim();
+    return g;
+  }
+  function emit(l) {
+    if (l.startsWith('red:')) line(l.slice(4), 'cl-red');
+    else if (l.startsWith('dim:')) line(l.slice(4), 'cl-dim');
+    else if (l.startsWith('gold:')) line(l.slice(5), 'cl-gold');
+    else line(l);
+  }
+
+  function openEvent(i) {
+    const ev = events[i];
+    document.getElementById('eo-title').textContent = ev.title;
+    document.getElementById('eo-text').innerHTML = ev.content.split('\n').filter((s) => s.trim())
+      .map((s) => `<p>${s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`).join('');
+    overlay.hidden = false;
+    overlay.dataset.ev = String(i);
+    audio.src = `${base}audio/events/${lang}/event-${i + 1}.mp3`;
+    audio.play().catch(() => {});
+  }
+  function fireEvent(i) {
+    if (fired.has(i)) return;
+    fired.add(i);
+    document.querySelectorAll('.ev-btn')[i]?.classList.remove('locked');
+    openEvent(i);
+  }
+  function closeEvent() {
+    const i = Number(overlay.dataset.ev);
+    overlay.hidden = true; audio.pause();
+    if (!read.has(i)) {
+      read.add(i);
+      document.querySelectorAll('.ev-btn')[i]?.classList.add('read');
+      line(`<s>${events[i].title}</s> — ${gc.read}`, 'cl-dim');
+      if (i === 0) {
+        line(lang === 'ru' ? '- Переверните один из Ближних Фрагментов Карты Оплота (IV-V)' : '- Flip one Rampart Near Tile on the map (IV-V)', 'cl-red');
+        line(lang === 'ru' ? `- Захватите Обелиск до конца 4 раунда, чтобы прочесть <u>${events[1].title}</u>` : `- Capture the Obelisk before the end of round 4 to read <u>${events[1].title}</u>`, 'cl-red');
+        (lang === 'ru'
+          ? ['- Не забудьте воспользоваться жетоном Найма, Постройки и Гильдии Магии.', '- Таблицу Сложности можно посмотреть, щелкнув на кнопку Героя.']
+          : ["- Don't forget to use the Recruitment, Construction tokens and the Magic Guild.", '- The Difficulty Table can be viewed by clicking the Hero button.']
+        ).forEach((l) => line(l));
+        const b = document.getElementById('bgm');
+        if (b) b.volume = 0.25;
+      }
+            if (i === 1) line(lang === 'ru' ? `- Сразитесь с Армией ${armyName(0)}` : `- Fight the ${armyName(0)} Army`, 'cl-red');
+      if (i === 2) {
+        line(lang === 'ru' ? '- Получите +8 [руда] и +2 [очка передвижения] на этот раунд' : '- Gain +8 [Ore] and +2 [Movement Points] for this round', 'cl-red');
+        line(lang === 'ru'
+          ? `- Разместите Армию ${armyName(0)} на клетке Обелиска Ближних Фрагментов Карты Оплота (IV-V). Если Фрагмент с Обелиском не разведан, переверните все Фрагменты Карты Оплота (IV-V) и расположите на клетке Обелиска Армию ${armyName(0)}. Добавьте существо Few Vampires в её армию.`
+          : `- Place the ${armyName(0)} Army on the Obelisk space of the Near Stronghold Map Fragments (IV-V). If the Obelisk Fragment is unexplored, flip all Stronghold Map Fragments (IV-V) and place the ${armyName(0)} Army on the Obelisk space. Add a Few Vampires creature to its army.`, 'cl-red');
+        fireEvent(3);
+      }
+      if (i === 3) line(lang === 'ru'
+        ? '- Разместите Дальний (II-III) и Ближний (IV-V) Фрагменты Подземелья, подготовленные ранее, как указано на слайде Карта (можно посмотреть по кнопке Карта). Расположите их как вам угодно. Они полностью исследованы.'
+        : '- Place the Far (II-III) and Near (IV-V) Dungeon Fragments prepared earlier, as indicated on the Map slide (you can view it via the Map button). Arrange them as you wish. They are fully explored.', 'cl-red');
+      if (i === 4) {
+        document.getElementById('necro-row').hidden = false;
+        line(lang === 'ru' ? '- Добавлена цель: Достигните Стартового Фрагмента Некрополь' : '- New objective added: Reach the Starting Necropolis Fragment', 'cl-red');
+        line(lang === 'ru' ? '- Разместите Армию Галтрана на заблокированной ячейке Ближайшего Фрагмента Карты (IV-V), рядом с Некрополем. Если Фрагмент не разведан — разведайте его сейчас.' : '- Place the Galthran Army on the locked space of the Near Map Fragment (IV-V), next to the Necropolis. If the Fragment is unexplored — explore it now.', 'cl-red');
+      }
+      if (i === 5) line(lang === 'ru' ? '- Битва с Армией Города' : '- Battle with the Town Army', 'cl-red');
+      line(gc.endHint, 'cl-dim');
+    }
+  }
+
+  function round1Lines() {
+    return lang === 'ru' ? [
+      '- Раунд 1 начался.',
+      '- Проверьте необходимое количество карт в руке.',
+      '- Получите 14 [золото], 4 [руда] начальных ресурсов.',
+      `- Выбран уровень сложности: ${DIFF_NAMES[st.diff]} — ${DIFF_LINES[st.diff]}`,
+      `- Выбран бонус: ${BONUS_LINES[st.bonus]}`,
+    ] : [
+      '- Round 1 has begun.',
+      '- Check the required number of cards in hand.',
+      '- Gain 14 [gold], 4 [Ore] starting resources.',
+      `- Difficulty level selected: ${DIFF_NAMES[st.diff]} — ${DIFF_LINES[st.diff]}`,
+      `- Bonus selected: ${BONUS_LINES[st.bonus]}`,
+    ];
+  }
+
+  function startRound(n) {
+    round = n;
+    phase = 'player';
+    document.getElementById('round-title').textContent = `${gc.round} ${n}`;
+    document.getElementById('phase-turn').textContent = gc.yourTurn;
+    roundType.textContent = n === 1 ? gc.startRoundLbl : (n % 2 === 0 ? gc.astroRound : gc.resourceRound);
+        document.querySelectorAll('.tcell').forEach((c) => {
+      const nn = Number(c.getAttribute('data-n'));
+      c.classList.toggle('current', nn === n);
+      c.classList.toggle('passed', nn < n);
+    });
+    if (n === 1) {
+      line(gc.yourTurn, 'cl-gold cl-center');
+      round1Lines().forEach((l) => emit(l));
+      fireEvent(0);
+    } else {
+      line(gc.yourTurn, 'cl-gold cl-center');
+      const willOpen = (n === 5 && !read.has(1) && !fired.has(2)) || n === 7;
+      (SCRIPT[n]?.player || []).forEach((l) => emit(l));
+            if (n === 5 && !read.has(1) && !fired.has(2)) {
+        const ob = document.querySelector('[data-cond="obelisk"]');
+        if (ob && !done.has('obelisk')) { setIcon(ob, '✕', 'failed'); }
+        line(lang === 'ru'
+          ? `- ${events[1].title} не прочтено: задание «Захватите Обелиск» заблокировано. Активируется ${events[2].title}.`
+          : `- ${events[1].title} not read: the Capture the Obelisk quest is blocked. ${events[2].title} is activated.`, 'cl-red');
+        fireEvent(2);
+      }
+            if (n === 7) fireEvent(4);
+            if (ESC && n === ESC) {
+        line(lang === 'ru' ? '- С этого раунда уровень сложности будет повышаться до конца игры' : '- From this round on, the difficulty level will increase until the end of the game', 'cl-red');
+        if (st.diff < 3) { st.diff += 1; diffLine.textContent = DIFF_NAMES[st.diff]; }
+      }
+      if (ESC && n > ESC && st.diff < 3) {
+        st.diff += 1;
+        diffLine.textContent = DIFF_NAMES[st.diff];
+        line(lang === 'ru' ? '- Уровень сложности увеличен' : '- Difficulty level increased', 'cl-red');
+      }
+      if (!willOpen) line(gc.endHint, 'cl-dim');
+    }
+  }
+
+  function defeat() {
+    document.getElementById('defeat-overlay').hidden = false;
+    const v = document.getElementById('defeat-video');
+    v.currentTime = 0;
+    v.muted = false;
+    v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+  }
+
+  function setIcon(btn, sym, cls) {
+    const ic = btn.querySelector('.cond-ic');
+    ic.textContent = sym;
+    btn.classList.add(cls);
+    btn.disabled = true;
+  }
+  function condClick(b) {
+    const id = b.getAttribute('data-cond');
+    if (done.has(id)) return;
+    done.add(id);
+    if (id.startsWith('lose_')) { setIcon(b, '✕', 'failed'); defeat(); return; }
+    setIcon(b, '✓', 'done');
+    if (id === 'aislinn' || id === 'galthran') line(lang === 'ru' ? '- Получите +2 [кристала]' : '- Gain +2 [crystals]', 'cl-red');
+    if (id === 'town') fireEvent(6);
+    if (id === 'obelisk') fireEvent(1);
+    if (id === 'necro') fireEvent(5);
+    if (done.has('aislinn') && done.has('galthran') && done.has('town')) line(gc.winMsg, 'cl-gold');
+    if (done.has('obelisk') && done.has('aislinn') && !fired.has('choice')) { fired.add('choice'); document.getElementById('choice-overlay').hidden = false; }
+  }
+  document.querySelectorAll('.cond-btn').forEach((b) => b.addEventListener('click', () => condClick(b)));
+
+  function choose(kind) {
+    document.getElementById('choice-overlay').hidden = true;
+    line(kind === 'ore'
+      ? (lang === 'ru' ? '- Выбрано: +4 [руда] и +2 к добыче руды' : '- Chosen: +4 [Ore] and +2 Ore income')
+      : (lang === 'ru' ? '- Выбрано: +15 [золото] и +5 к добыче золота' : '- Chosen: +15 [Gold] and +5 Gold income'), 'cl-red');
+    fireEvent(3);
+  }
+  document.getElementById('choice-ore').addEventListener('click', () => choose('ore'));
+  document.getElementById('choice-gold').addEventListener('click', () => choose('gold'));
+  document.getElementById('defeat-close').addEventListener('click', () => { document.getElementById('defeat-overlay').hidden = true; });
+  document.getElementById('defeat-restart').addEventListener('click', () => { window.location.reload(); });
+  document.getElementById('defeat-sound').addEventListener('click', () => {
+    const v = document.getElementById('defeat-video');
+    v.muted = false;
+    v.play().catch(() => {});
+  });
+    document.getElementById('info-close')?.addEventListener('click', () => { document.getElementById('info-overlay').hidden = true; });
+  document.getElementById('bgm-toggle').addEventListener('click', () => {
+    const b = document.getElementById('bgm');
+    b.muted = !b.muted;
+    document.getElementById('bgm-toggle').textContent = b.muted ? '🔇' : '🔊';
+  });
+
+  window.addEventListener('game:start', (e) => {
+    st.diff = e.detail?.diff ?? 0;
+    st.bonus = e.detail?.bonus ?? 0;
+    diffLine.textContent = DIFF_NAMES[st.diff];
+    document.getElementById('game-left').style.display = '';
+    document.getElementById('events-panel').style.display = '';
+    const bgm = document.getElementById('bgm');
+    bgm.volume = 0.6;
+    bgm.play().catch(() => {});
+    startRound(1);
+  });
+
+  document.getElementById('eo-close').addEventListener('click', closeEvent);
+  document.getElementById('eo-audio').addEventListener('click', () => audio.play().catch(() => {}));
+  document.querySelectorAll('.ev-btn').forEach((b) => {
+    b.classList.add('locked');
+    b.addEventListener('click', () => {
+      if (b.classList.contains('locked')) return;
+      openEvent(Number(b.getAttribute('data-ev')));
+    });
+  });
+
+  document.getElementById('g-btn-end').addEventListener('click', () => {
+    if (phase === 'player') {
+      phase = 'ai';
+      document.getElementById('phase-turn').textContent = gc.aiTurn;
+           line(gc.aiTurn, 'cl-ai cl-center');
+      line(lang === 'ru' ? `- Раунд ${round}` : `- Round ${round}`, 'cl-ai');
+      line(lang === 'ru' ? 'Ходит ИИ. Правила перемещения и сражения смотри по кнопке ИИ' : 'AI turns. For movement and combat rules, see the AI button.', 'cl-ai');
+      if (!done.has('aislinn')) line(lang === 'ru'
+        ? `- Ходит ${armyName(0)}: 3 [очка перемещения] + 1 [очка перемещения] (Rogues)`
+        : `- ${armyName(0)} Army turns: 3 [Movement Points] + 1 [Movement Points] (Rogues)`, 'cl-ai');
+      if (!done.has('galthran')) line(lang === 'ru'
+        ? `- Ходит ${armyName(1)}: 3 [очка перемещения]`
+        : `- ${armyName(1)} Army turns: 3 [Movement Points]`, 'cl-ai');
+      line(gc.endHint, 'cl-dim');
+    } else {
+      if (round >= MAX_ROUND) defeat();
+      else startRound(round + 1);
+    }
+  });
+
+  const stage = document.getElementById('stage');
+  const sidebar = document.getElementById('sidebar');
+  const toConsole = document.getElementById('to-console');
+  function showSetup(tab) {
+    document.getElementById('game-left').style.display = 'none';
+    document.getElementById('events-panel').style.display = 'none';
+    stage.style.display = ''; sidebar.style.display = '';
+    document.body.classList.add('setup-lock');
+    document.querySelectorAll('.tab-pane').forEach((p) => p.classList.toggle('active', p.id === 'pane-' + tab));
+    toConsole.hidden = false;
+  }
+  document.getElementById('g-btn-map').addEventListener('click', () => showSetup('map'));
+    function openPdf(path) {
+    const ov = document.getElementById('pdf-overlay');
+    const fr = document.getElementById('pdf-frame');
+    if (ov && fr) { fr.src = base + path; ov.hidden = false; }
+    else window.open(base + path, '_blank');
+  }
+  document.getElementById('g-btn-heroes').addEventListener('click', () => openPdf('docs/info-' + lang + '.pdf'));
+  document.getElementById('g-btn-ai').addEventListener('click', () => openPdf('docs/ai-' + lang + '.pdf'));
+  document.getElementById('pdf-open')?.addEventListener('click', () => {
+    const fr = document.getElementById('pdf-frame');
+    if (fr && fr.src) window.open(fr.src, '_blank');
+  });
+  document.getElementById('pdf-close')?.addEventListener('click', () => {
+    document.getElementById('pdf-overlay').hidden = true;
+    document.getElementById('pdf-frame').src = '';
+  });
+  toConsole.addEventListener('click', () => {
+    stage.style.display = 'none'; sidebar.style.display = 'none';
+    document.body.classList.remove('setup-lock');
+    document.querySelectorAll('.tab-pane').forEach((p) => p.classList.remove('active'));
+    document.getElementById('game-left').style.display = '';
+    document.getElementById('events-panel').style.display = '';
+    toConsole.hidden = true;
+  });
+</script>

@@ -1,0 +1,463 @@
+---
+import { getCollection } from 'astro:content';
+import GameConsole from '../../../components/GameConsole.astro';
+import '../../../styles/global.css';
+
+export async function getStaticPaths() {
+  const missions = await getCollection('missions');
+  return missions.map((mission) => ({
+    params: { lang: mission.data.lang, slug: mission.id.replace(/\.md$/, '').replace(/-(ru|en)$/, '') },
+    props: { mission },
+  }));
+}
+
+const { mission } = Astro.props;
+const d = mission.data;
+const lang = d.lang;
+const slug = mission.id.replace(/\.md$/, '').replace(/-(ru|en)$/, '');
+const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+const img = (p: string) => base + 'images/' + p;
+function slugify(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '');
+}
+function cardImg(card: any) {
+  if (card.img) return img(card.img);
+  const name = slugify(card.title || '');
+  const amt = (card.amount || '').toLowerCase();
+  return img('sfak/ai/cards/' + (amt ? `${name}-${amt}.png` : `${name}.png`));
+}
+
+const KW: Record<string, string> = { Statistic: 'kw-stat', Specialty: 'kw-spec', Ability: 'kw-abil', Spell: 'kw-spell' };
+function deckHtml(c: string) {
+  const i = c.lastIndexOf(' ');
+  const last = c.slice(i + 1);
+  const cls = KW[last];
+  return cls ? c.slice(0, i + 1) + `<span class="${cls}">${last}</span>` : c;
+}
+
+const STARS: Record<string, string> = {
+  'Few Centaurs': 'star-o', 'Few Dwarves': 'star-o', 'Few Elves': 'star-w',
+  'Pack Skeletons': 'star-o', 'Pack Zombies': 'star-o', 'Few Liches': 'star-w',
+  'Rogues': 'star-o', 'Pack Vampires': 'star-w', 'Pack Liches': 'star-w',
+  'Mummies': 'star-w', 'Pack Dread Knights': 'star-g', 'Few Black Dragons': 'star-g',
+};
+function starFor(name: string) {
+  const cls = STARS[name.trim()];
+    return cls ? `\u00A0<span class="${cls}">★</span>` : '';
+}
+const counts: Record<string, number> = {};
+for (const c of d.mainHero.handDeck) {
+  const m = c.match(/^(\d+)\s*x\s+(.+)$/i);
+  if (!m) continue;
+  const n = Number(m[1]);
+  const name = m[2].toLowerCase();
+  if (name.includes('attack')) counts.attack = n;
+  else if (name.includes('defense')) counts.defense = n;
+  else if (name.includes('power')) counts.power = n;
+  else if (name.includes('knowledge')) counts.knowledge = n;
+  else if (name.includes('sharpshooters')) counts.sharpshooters = n;
+  else if (name.includes('magic arrow')) counts.magic = n;
+  else if (name.includes('archery')) counts.archery = n;
+}
+const t = lang === 'ru' ? {
+  mapTitle: 'КАРТА', townTitle: 'ГЛАВНЫЙ ГОРОД', heroTitle: 'ГЛАВНЫЙ ГЕРОЙ',
+  aiTitle: 'НАСТРОЙКИ ИИ', winTitle: 'УСЛОВИЯ ПОБЕДЫ',
+  check: 'До начала игры проверьте:',
+  tabMap: 'Настройки Карты', tabTown: 'Настройки Главного Города',
+  tabHero: 'Настройки Главного Героя', tabAi: 'Настройки ИИ', tabWin: 'Условия Победы',
+  mapSettings: 'Настройки Карты:', townSettings: 'Настройки:', heroSettings: 'Настройки:',
+  army: 'Армия :', yourDeck: 'Ваша колода:', handDeckTitle: 'Ваша Колода:', aiDeck: 'Колода:',
+  starting: 'Стартовые фрагменты (I):', far: 'Дальние фрагменты (II-III):',
+  near: 'Ближние фрагменты (IV-V):', additional: 'Дополнительно :',
+  buildings: 'Возведено :', production: 'Доход:', startRes: 'Стартовые ресурсы:',
+  goals: 'Условия победы(победить):', lose: 'Условия поражения:', rules: 'Дополнительные правила:',
+  begin: 'НАЧАТЬ', back: 'НАЗАД', machine: 'Ammo Cart War Machine',
+  diffNames: ['Лёгкий', 'Средний', 'Сложный', 'Невозможный'],
+  bonusNames: ['Руда', 'Кристаллы', 'Ammo Cart War Machine'],
+} : {
+  mapTitle: 'MAP', townTitle: 'MAIN TOWN', heroTitle: 'MAIN HERO',
+  aiTitle: 'AI SETTINGS', winTitle: 'WIN CONDITIONS',
+  check: 'Please check before starting the game :',
+  tabMap: 'Map Settings', tabTown: 'Main Town Settings',
+  tabHero: 'Main Hero Settings', tabAi: 'AI Settings', tabWin: 'Win Conditions',
+  mapSettings: 'Map Settings:', townSettings: 'Main Town Settings:', heroSettings: 'Main Hero Settings:',
+  army: 'Army :', yourDeck: 'Hand Deck:', handDeckTitle: 'Hand Deck:', aiDeck: 'Deck:',
+  starting: 'Starting Map tile (I):', far: 'Far Map tile (II-III):',
+  near: 'Near Map tile (IV-V):', additional: 'Additionally :',
+  buildings: 'Town Buildings :', production: 'Production:', startRes: 'Starting Resources:',
+  goals: 'Win Conditions(defeat):', lose: 'Lose Conditions:', rules: 'ADDITIONAL RULES:',
+  begin: 'BEGIN', back: 'BACK', machine: 'Ammo Cart War Machine',
+  diffNames: ['Easy', 'Medium', 'Hard', 'Impossible'],
+  bonusNames: ['Ore', 'Crystals', 'Ammo Cart War Machine'],
+};
+
+const aiOrder = ['Aislinn', 'Galthran', 'Town'];
+const aiSorted = [...d.aiSettings].sort((a: any, b: any) => aiOrder.indexOf(a.name) - aiOrder.indexOf(b.name));
+const prod = d.mainTown.production.split(' ');
+const res = d.mainTown.startingResources.split(' ');
+const resIcons = ['gold.png', 'ore.png', 'crystal.png'];
+const buildingIcons = ['🏰', '★', '☆'];
+const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
+---
+
+<!DOCTYPE html>
+<html lang={lang}>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{d.title} | Heroes III Board Game</title>
+</head>
+<body style={`--tex-stone:url('${img('ui/stone.jpg')}'); --tex-blue:url('${img('ui/blue.jpg')}')`}>
+  <div class="topbar">{d.title}</div>
+
+  <div class="screen">
+               <aside class="filmstrip">
+      {Array.from({ length: 12 }).map((_, i) => (
+        <img class:list={['thumb', { sel: i === 1 }]} src={img(`ui/thumb/t${i + 1}.png`)} alt="" onerror="this.onerror=null;this.src='/HOMM3-BoardGame/images/ui/thumb.png';" />
+      ))}
+    </aside>
+
+    <main class="stage" id="stage">
+
+                 <!-- КАРТА -->
+      <section class="tab-pane active" id="pane-map">
+        <h1 class="stage-title">{t.mapTitle}</h1>
+        <div class="visual">
+          <button class="nav-arrow" data-dir="-1"><img src={img('ui/arrow-left.png')} alt="◄" onerror="this.parentNode.textContent='◄'" /></button>
+          <img class="visual-img clean" src={img('sfak/map.png')} alt="Map" onerror="this.style.display='none'" />
+          <button class="nav-arrow" data-dir="1"><img src={img('ui/arrow-right.png')} alt="►" onerror="this.parentNode.textContent='►'" /></button>
+        </div>
+        <div class="squares">
+          {['map', 'town', 'hero', 'ai', 'win'].map((tab) => (
+            <button class="sq" data-goto={tab}></button>
+          ))}
+        </div>
+        <h3 class="set-title" style="text-align:left">{t.mapSettings}</h3>
+        <div class="map-cols">
+          <div>
+            <p class="col-head">{t.starting}</p>
+            <ul class="game-list" style="white-space:nowrap">{d.mapSettings.starting.split(/, (?=\d)/).map((a: string) => <li>{a.trim()}</li>)}</ul>
+          </div>
+          <div>
+            <p class="col-head">{t.far}</p>
+            <ul class="game-list" style="white-space:nowrap">{d.mapSettings.far.split(/, (?=\d)/).map((a: string) => <li>{a.trim()}</li>)}</ul>
+          </div>
+          <div>
+            <p class="col-head">{t.near}</p>
+            <ul class="game-list" style="white-space:nowrap">{d.mapSettings.near.split(/, (?=\d)/).map((a: string) => <li>{a.trim()}</li>)}</ul>
+          </div>
+        </div>
+        <div class="map-add">
+          <p class="col-head">{t.additional}</p>
+          <ul class="game-list" style="white-space:nowrap">{d.mapSettings.additional.split(/, (?=\d)/).map((a: string) => <li>{a.trim()}</li>)}</ul>
+        </div>
+      </section>
+
+            <!-- ГОРОД -->
+      <section class="tab-pane" id="pane-town">
+        <h1 class="stage-title">{t.townTitle}</h1>
+        <div class="visual">
+          <button class="nav-arrow" data-dir="-1"><img src={img('ui/arrow-left.png')} alt="◄" onerror="this.parentNode.textContent='◄'" /></button>
+          <img class="visual-img" src={img('sfak/town.png')} alt="Town" onerror="this.style.display='none'" />
+          <button class="nav-arrow" data-dir="1"><img src={img('ui/arrow-right.png')} alt="►" onerror="this.parentNode.textContent='►'" /></button>
+        </div>
+        <div class="squares">
+          {['map', 'town', 'hero', 'ai', 'win'].map((tab) => (
+            <button class="sq" data-goto={tab}></button>
+          ))}
+        </div>
+        <h3 class="set-title" style="text-align:left">{t.townSettings}</h3>
+        <div class="three-col">
+          <div>
+            <p class="col-head">{t.buildings}</p>
+            <ul class="game-list" style="white-space:nowrap">
+              {d.mainTown.buildings.split(',').map((b: string, i: number) => (
+                <li>{b.trim()} <span class={i === 0 ? 'b-icon' : i === 1 ? 'star-o' : 'star-w'}>{buildingIcons[i] ?? '★'}</span></li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p class="col-head">{t.production}</p>
+            <ul class="game-list" style="white-space:nowrap">{prod.map((n: string, i: number) => <li class="res-line">{n} <img src={img('ui/' + resIcons[i])} alt="" onerror="this.style.display='none'" /></li>)}</ul>
+          </div>
+          <div>
+            <p class="col-head">{t.startRes}</p>
+            <ul class="game-list" style="white-space:nowrap">{res.map((n: string, i: number) => <li class="res-line">{n} <img src={img('ui/' + resIcons[i])} alt="" onerror="this.style.display='none'" /></li>)}</ul>
+          </div>
+        </div>
+      </section>
+
+                 <!-- ГЕРОЙ -->
+      <section class="tab-pane" id="pane-hero">
+        <h1 class="stage-title">{t.heroTitle}</h1>
+        <div class="visual">
+          <button class="nav-arrow" data-dir="-1"><img src={img('ui/arrow-left.png')} alt="◄" onerror="this.parentNode.textContent='◄'" /></button>
+                    <div class="hero-grid">
+            <img class="hero-img" src={img('sfak/hero.png')} alt="Gelu" onerror="this.style.display='none'" />
+            <div class="hg-stats">
+              <p class="hand-title">{t.handDeckTitle}</p>
+              <div class="cards-row">
+                {[{ c: 'attack.png', n: counts.attack }, { c: 'defense.png', n: counts.defense }, { c: 'power.png', n: counts.power }, { c: 'knowledge.png', n: counts.knowledge }].map((o) => (
+                  <div class="card-wrap">
+                    <img class="card-img" src={img('sfak/cards/' + o.c)} alt="" onerror="this.style.display='none'" />
+                    <span class="card-count">{o.n ?? 1}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div class="cards-row hg-units">
+              {['centaurs.png', 'dwarves.png', 'elves.png'].map((c) => (
+                <div class="card-wrap"><img class="card-img small" src={img('sfak/cards/' + c)} alt="" onerror="this.style.display='none'" /></div>
+              ))}
+            </div>
+            <div class="cards-row hg-skills">
+              {[{ c: 'sharpshooters.png', n: counts.sharpshooters }, { c: 'magic-arrow.png', n: counts.magic }, { c: 'archery.png', n: counts.archery }].map((o) => (
+                <div class="card-wrap">
+                  <img class="card-img small" src={img('sfak/cards/' + o.c)} alt="" onerror="this.style.display='none'" />
+                  <span class="card-count">{o.n ?? 1}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <button class="nav-arrow" data-dir="1"><img src={img('ui/arrow-right.png')} alt="►" onerror="this.parentNode.textContent='►'" /></button>
+        </div>
+        <div class="squares">
+          {['map', 'town', 'hero', 'ai', 'win'].map((tab) => (
+            <button class="sq" data-goto={tab}></button>
+          ))}
+        </div>
+        <h3 class="set-title" style="text-align:left">{t.heroSettings}</h3>
+        <div class="two-col">
+          <div>
+            <p class="col-head">{t.army}</p>
+            <ul class="game-list" style="white-space:nowrap">{d.mainHero.army.split(',').map((a: string) => <li set:html={a.trim() + starFor(a)} />)}</ul>
+          </div>
+          <div>
+            <p class="col-head">{t.yourDeck}</p>
+            <ul class="game-list" style="white-space:nowrap">{d.mainHero.handDeck.map((c: string) => <li set:html={deckHtml(c)} />)}</ul>
+          </div>
+        </div>
+      </section>
+
+            <!-- ИИ -->
+      <section class="tab-pane" id="pane-ai">
+        <h1 class="stage-title">{t.aiTitle}</h1>
+        <div class="visual">
+          <button class="nav-arrow" data-dir="-1"><img src={img('ui/arrow-left.png')} alt="◄" onerror="this.parentNode.textContent='◄'" /></button>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;width:100%;max-width:980px;align-items:start">
+            {aiSorted.map((ai: any) => (
+              <div style="border:1px solid #a8863c;background:rgba(0,0,0,.15);padding:8px 6px;min-width:0">
+                <p style="color:#e9c464;text-align:center;font-size:.95rem;margin-bottom:4px">{lang === 'ru' ? 'Армия ' + ai.name + ':' : ai.name + "'s Army:"}</p>
+                {ai.armyCards && ai.armyCards.length ? (
+                  <div style="display:grid;grid-template-columns:repeat(2,auto);justify-content:center;gap:6px">
+                    {ai.armyCards.map((card: any) => (
+                      <div style="border:none;background:none;padding:2px;min-width:0">
+                        <img src={cardImg(card)} alt={card.title || ''} style="display:block;width:auto;height:96px;max-width:100%" onerror="this.style.display='none'" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <img src={img('sfak/ai/' + (ai.name === 'Aislinn' ? 'aislinn.png' : ai.name === 'Galthran' ? 'galthran.png' : 'town-army.png'))} alt="" style="max-height:240px;max-width:100%;display:block;margin:0 auto" onerror="this.style.display='none'" />
+                )}
+              </div>
+            ))}
+          </div>
+          <button class="nav-arrow" data-dir="1"><img src={img('ui/arrow-right.png')} alt="►" onerror="this.parentNode.textContent='►'" /></button>
+        </div>
+        <div class="squares">
+          {['map', 'town', 'hero', 'ai', 'win'].map((tab) => (
+            <button class="sq" data-goto={tab}></button>
+          ))}
+        </div>
+        <div class="ai-cols">
+          {aiSorted.map((ai: any) => (
+            <div>
+              <h3 class="set-title" style="text-align:left;font-size:1.05rem">{lang === 'ru' ? 'Настройки ' + ai.name + ':' : ai.name + ' Settings:'}</h3>
+              <div class="ai-sub" style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+                <div>
+                  <p class="col-head">{t.army}</p>
+                  <ul class="game-list" style="white-space:nowrap;font-size:.82rem">{ai.army.split(',').map((a: string) => <li set:html={a.trim() + starFor(a)} />)}</ul>
+                </div>
+                {ai.deck && (
+                  <div>
+                    <p class="col-head">{t.aiDeck}</p>
+                    <ul class="game-list" style="font-size:.82rem">{ai.deck.split(',').map((a: string) => <li set:html={deckHtml(a.trim())} />)}</ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+                  <!-- УСЛОВИЯ ПОБЕДЫ -->
+      <section class="tab-pane" id="pane-win">
+        <h1 class="stage-title">{t.winTitle}</h1>
+        <div class="visual">
+          <button class="nav-arrow" data-dir="-1"><img src={img('ui/arrow-left.png')} alt="◄" onerror="this.parentNode.textContent='◄'" /></button>
+          <div class="win-cols">
+            <div>
+              <p class="col-head">{t.goals}</p>
+              <ul class="win-list">{d.goals.map((g: string) => <li>{g}</li>)}</ul>
+              <p class="col-head" style="margin-top:1.4rem">{t.lose}</p>
+              <ul class="win-list">{d.loseConditions.map((g: string) => <li>{g}</li>)}</ul>
+            </div>
+            <div>
+              <p class="col-head">{t.rules}</p>
+              <ul class="win-list">{d.additionalRules.map((g: string) => <li>{g}</li>)}</ul>
+            </div>
+          </div>
+          <button class="nav-arrow" data-dir="1"><img src={img('ui/arrow-right.png')} alt="►" onerror="this.parentNode.textContent='►'" /></button>
+        </div>
+        <div class="squares">
+          {['map', 'town', 'hero', 'ai', 'win'].map((tab) => (
+            <button class="sq" data-goto={tab}></button>
+          ))}
+        </div>
+      </section>
+    </main>
+
+    <!-- ПРАВАЯ ПАНЕЛЬ -->
+        <aside class="sidebar" id="sidebar">
+      <i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i>
+                  <p class="desc">{d.description}</p>
+
+      <div class="checklist">
+        <div class="check-head">{t.check}</div>
+        <button class="check-item" data-tab="map"><img class="ic no" src={img('ui/check-no.png')} alt="" onerror="this.style.display='none'" /><img class="ic yes" src={img('ui/check-yes.png')} alt="" onerror="this.style.display='none'" />{t.tabMap}</button>
+        <button class="check-item" data-tab="town"><img class="ic no" src={img('ui/check-no.png')} alt="" onerror="this.style.display='none'" /><img class="ic yes" src={img('ui/check-yes.png')} alt="" onerror="this.style.display='none'" />{t.tabTown}</button>
+        <button class="check-item" data-tab="hero"><img class="ic no" src={img('ui/check-no.png')} alt="" onerror="this.style.display='none'" /><img class="ic yes" src={img('ui/check-yes.png')} alt="" onerror="this.style.display='none'" />{t.tabHero}</button>
+        <button class="check-item" data-tab="ai"><img class="ic no" src={img('ui/check-no.png')} alt="" onerror="this.style.display='none'" /><img class="ic yes" src={img('ui/check-yes.png')} alt="" onerror="this.style.display='none'" />{t.tabAi}</button>
+        <button class="check-item" data-tab="win"><img class="ic no" src={img('ui/check-no.png')} alt="" onerror="this.style.display='none'" /><img class="ic yes" src={img('ui/check-yes.png')} alt="" onerror="this.style.display='none'" />{t.tabWin}</button>
+      </div>
+
+                  <div class="meta-row"><span id="bonus-label">{t.bonusNames[0]}</span><span id="diff-label">{t.diffNames[0]}</span></div>
+
+            <div class="resources">
+        {bonusIcons.map((ic, i) => (
+          <button class:list={['res-slot', { selected: i === 0 }]} data-bonus={i}><img src={img('ui/' + ic)} alt="" onerror="this.style.display='none'" /></button>
+        ))}
+                        <button class="res-slot" id="diff-slot" title="difficulty">
+          <img class="chess-img" id="chess-img" src={img('ui/pawn.png')} alt=""
+            onerror="this.style.display='none';document.getElementById('chess-fb').style.display='block';"
+            onload="this.style.display='block';document.getElementById('chess-fb').style.display='none';" />
+          <span class="chess-fb" id="chess-fb" style="display:none">♔</span>
+        </button>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="begin-btn" disabled>{t.begin}</button>
+        <a class="btn" href={`${base}${lang}/`}>{t.back}</a>
+      </div>
+    </aside>
+
+    <GameConsole mission={mission} lang={lang} base={base} />
+  </div>
+
+    <div class="bottombar">
+      <button class="btn" id="bgm-toggle">🔊</button>
+    <a class="flag" class:list={[{ active: lang === 'ru' }]} href={`${base}ru/mission/${slug}/`}><img src={img('ui/flag-ru.png')} alt="RU" onerror="this.style.display='none'" />🇷🇺</a>
+    <a class="flag" class:list={[{ active: lang === 'en' }]} href={`${base}en/mission/${slug}/`}><img src={img('ui/flag-en.png')} alt="EN" onerror="this.style.display='none'" />🇬🇧</a>
+    <span class="lang-slot"></span>
+    <span class="lang-slot dark"></span>
+    <span class="lang-slot"></span>
+    <span class="lang-slot"></span>
+  </div>
+
+     <script define:vars={{ base }}>
+        const applyZoom = () => { document.documentElement.style.zoom = (window.innerWidth / 1280).toFixed(3); };
+    applyZoom(); window.addEventListener('resize', applyZoom);
+
+    const langNow = document.documentElement.lang;
+    const order = ['map', 'town', 'hero', 'ai', 'win'];
+    let current = 'map';
+    let started = false;
+    let diffIdx = 0;
+    let bonusIdx = 0;
+    const visited = new Set();
+
+    const items = Array.from(document.querySelectorAll('.check-item'));
+    const panes = Array.from(document.querySelectorAll('.tab-pane'));
+    const beginBtn = document.getElementById('begin-btn');
+    const bonusLabel = document.getElementById('bonus-label');
+    const diffLabel = document.getElementById('diff-label');
+
+    const bonusNamesL = langNow === 'ru' ? ['Руда', 'Кристаллы', 'Ammo Cart War Machine'] : ['Ore', 'Crystals', 'Ammo Cart War Machine'];
+    const names4 = langNow === 'ru' ? ['Лёгкий', 'Средний', 'Сложный', 'Невозможный'] : ['Easy', 'Medium', 'Hard', 'Impossible'];
+    const imgs4 = ['pawn.png', 'knight.png', 'rook.png', 'king.png'];
+    const pieces4 = ['♙', '♘', '♖', '♔'];
+
+    function squaresUpdate() {
+      const n = started ? 5 : order.indexOf(current) + 1;
+      document.querySelectorAll('.squares').forEach((sq) =>
+        Array.from(sq.children).forEach((s, i) => s.classList.toggle('filled', i < n)));
+    }
+    function beginUpdate() {
+      beginBtn.disabled = !(visited.size >= 5 && diffIdx >= 0 && bonusIdx >= 0);
+    }
+    function go(tab) {
+      if (started || tab === current) return;
+      visited.add(current);
+      if (tab === 'win') visited.add('win');
+      items.forEach((b) => {
+        const t2 = b.getAttribute('data-tab');
+        b.classList.toggle('active', t2 === tab);
+        b.classList.toggle('visited', visited.has(t2));
+      });
+      panes.forEach((p) => p.classList.toggle('active', p.id === 'pane-' + tab));
+      current = tab;
+      squaresUpdate(); beginUpdate();
+    }
+
+    items.forEach((b) => b.addEventListener('click', () => go(b.getAttribute('data-tab'))));
+        document.querySelectorAll('.sq').forEach((b) =>
+      b.addEventListener('click', () => go(b.getAttribute('data-goto'))));
+    document.querySelectorAll('.nav-arrow[data-dir]').forEach((a) =>
+      a.addEventListener('click', () => {
+        const dir = Number(a.getAttribute('data-dir'));
+        const i = Math.min(order.length - 1, Math.max(0, order.indexOf(current) + dir));
+        go(order[i]);
+      }));
+
+    document.querySelectorAll('.res-slot[data-bonus]').forEach((s) =>
+      s.addEventListener('click', () => {
+        bonusIdx = Number(s.getAttribute('data-bonus'));
+        document.querySelectorAll('.res-slot[data-bonus]').forEach((x) => x.classList.toggle('selected', x === s));
+        bonusLabel.textContent = bonusNamesL[bonusIdx];
+        beginUpdate();
+      }));
+
+    const diffSlot = document.getElementById('diff-slot');
+    const chessImg = document.getElementById('chess-img');
+    const chessFb = document.getElementById('chess-fb');
+    diffSlot.addEventListener('click', () => {
+      diffIdx = (diffIdx + 1) % 4;
+      diffLabel.textContent = names4[diffIdx];
+      if (chessImg) chessImg.src = base + 'images/ui/' + imgs4[diffIdx];
+      if (chessFb) chessFb.textContent = pieces4[diffIdx];
+      beginUpdate();
+    });
+
+    beginBtn.addEventListener('click', () => {
+      started = true;
+      document.getElementById('stage').style.display = 'none';
+      document.getElementById('sidebar').style.display = 'none';
+      panes.forEach((p) => p.classList.remove('active'));
+      squaresUpdate();
+      window.dispatchEvent(new CustomEvent('game:start', { detail: { diff: diffIdx, bonus: bonusIdx } }));
+    });
+
+    const click = new Audio(base + 'audio/click.mp3');
+        document.addEventListener('click', (e) => {
+      if (e.target.closest('button, a.flag')) { click.currentTime = 0; click.play().catch(() => {}); }
+    }, true);
+    const tabS = new Audio(base + 'audio/tab-switch.mp3');
+    document.querySelectorAll('.check-item, .nav-arrow, .res-slot, #diff-slot, .btn').forEach((el) =>
+      el.addEventListener('click', () => { tabS.currentTime = 0; tabS.play().catch(() => {}); }));
+    document.querySelectorAll('.flag').forEach((el) =>
+      el.addEventListener('click', () => { click.currentTime = 0; click.play().catch(() => {}); }));
+
+    squaresUpdate(); beginUpdate();
+  </script>
+</body>
+</html>

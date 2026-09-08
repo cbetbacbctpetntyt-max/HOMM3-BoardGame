@@ -1,0 +1,41 @@
+---
+import { getCollection } from 'astro:content';
+import '../../styles/global.css';
+
+export async function getStaticPaths() {
+  return [ { params: { lang: 'ru' } }, { params: { lang: 'en' } } ];
+}
+
+const lang = Astro.params.lang as string;
+const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+const all = await getCollection('missions');
+const missions = all.filter((m) => m.data.lang === lang);
+const heading = lang === 'ru' ? 'Миссии' : 'Missions';
+---
+
+<!DOCTYPE html>
+<html lang={lang}>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{heading} | Heroes III Board Game</title>
+</head>
+<body>
+  <div class="topbar">⚔ Heroes III — Scenarios</div>
+  <main class="mission-container">
+    <h1 class="page-title">{heading}</h1>
+    <div class="mission-list">
+      {missions.map((m) => (
+         <a class="mission-card" href={`${base}${lang}/mission/${m.id.replace(/\.md$/, '').replace(/-(ru|en)$/, '')}/`}>
+          <h2>{m.data.title}</h2>
+          <p>{m.data.description}</p>
+        </a>
+      ))}
+    </div>
+  </main>
+  <div class="bottombar">
+    <a class="flag" class:list={[{ active: lang === 'ru' }]} href={`${base}ru/`}>🇷🇺</a>
+    <a class="flag" class:list={[{ active: lang === 'en' }]} href={`${base}en/`}>🇬🇧</a>
+  </div>
+</body>
+</html>
