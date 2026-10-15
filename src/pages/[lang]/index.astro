@@ -3,39 +3,136 @@ import { getCollection } from 'astro:content';
 import '../../styles/global.css';
 
 export async function getStaticPaths() {
-  return [ { params: { lang: 'ru' } }, { params: { lang: 'en' } } ];
+  return [{ params: { lang: 'ru' } }, { params: { lang: 'en' } }];
 }
 
-const lang = Astro.params.lang as string;
+const lang = (Astro.params.lang || 'ru') as string;
 const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
-const all = await getCollection('missions');
-const missions = all.filter((m) => m.data.lang === lang);
-const heading = lang === 'ru' ? 'Миссии' : 'Missions';
----
+const img = (p: string) => base + 'images/' + p;
+function slugOf(id: string) { return id.replace(/\.md$/, '').replace(/-(ru|en)$/, ''); }
 
+const all = await getCollection('missions');
+const list = all.filter((m) => m.data.lang === lang);
+const byFaction: Record<number, any[]> = {};
+for (const m of list) {
+  const f = Number((m.data as any).faction ?? 1);
+  if (!byFaction[f]) byFaction[f] = [];
+  byFaction[f].push(m);
+}
+for (const k of Object.keys(byFaction)) byFaction[k].sort((a, b) => Number(a.data.order ?? 0) - Number(b.data.order ?? 0));
+const FACTION_COUNT = 13;
+const soon = lang === 'ru' ? 'Скоро…' : 'Soon…';
+---
 <!DOCTYPE html>
 <html lang={lang}>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{heading} | Heroes III Board Game</title>
+  <title>Heroes III — Scenarios</title>
 </head>
-<body>
-  <div class="topbar">⚔ Heroes III — Scenarios</div>
-  <main class="mission-container">
-    <h1 class="page-title">{heading}</h1>
-    <div class="mission-list">
-      {missions.map((m) => (
-         <a class="mission-card" href={`${base}${lang}/mission/${m.id.replace(/\.md$/, '').replace(/-(ru|en)$/, '')}/`}>
-          <h2>{m.data.title}</h2>
-          <p>{m.data.description}</p>
-        </a>
-      ))}
-    </div>
-  </main>
-  <div class="bottombar">
-    <a class="flag" class:list={[{ active: lang === 'ru' }]} href={`${base}ru/`}>🇷🇺</a>
-    <a class="flag" class:list={[{ active: lang === 'en' }]} href={`${base}en/`}>🇬🇧</a>
+<body style={`margin:0;min-height:100vh;font-family:'NewCM08','Georgia','Times New Roman',serif;background:#17181a url('${img('ui/menu-bg.jpg')}') center/cover no-repeat fixed;--tex-blue:url('${img('ui/blue.jpg')}');--tex-stone:url('${img('ui/stone.jpg')}')`}>
+    <aside class="menu-strip" style="position:fixed;left:0;top:0;bottom:48px;width:52px;z-index:20;background:rgba(10,10,12,.72);padding:3px;display:flex;flex-direction:column;gap:3px">
+    {Array.from({ length: FACTION_COUNT }).map((_, fi) => (
+      <div class="faction-slot" style="position:relative;flex:0 0 auto;width:46px">
+        <img style="width:46px;height:32px;object-fit:cover;display:block" src={img(`ui/thumb/t${fi + 1}.png`)} alt="" onerror="this.onerror=null;this.outerHTML='<span style=&quot;display:flex;align-items:center;justify-content:center;width:46px;height:32px;font-size:1.1rem;background:#20242a&quot;>🏰</span>'" />
+        <div class="faction-pop" style="display:none;position:absolute;left:46px;top:-8px;padding-left:10px;gap:10px;z-index:35;flex-direction:row;align-items:flex-start">
+          {(byFaction[fi] || []).length
+            ? (byFaction[fi] || []).map((m) => (
+                <a class="mission-btn" href={`${base}${lang}/mission/${slugOf(m.id)}/`}>
+                  <span>{m.data.title}</span>
+                  <span class="mission-desc"><b>{m.data.title}</b>{m.data.description}</span>
+                </a>
+              ))
+            : [0, 1, 2].map(() => <span class="mission-btn soon">{soon}</span>)}
+        </div>
+      </div>
+    ))}
+  </aside>
+
+  <div style="position:fixed;left:0;right:0;bottom:0;z-index:25;display:flex;align-items:center;gap:10px;padding:8px 12px;background:#141414;height:48px;box-sizing:border-box">
+    <button class="btn" id="bgm-toggle" style="min-width:40px">🔊</button>
+        <a class="flag" class:list={[{ active: lang === 'ru' }]} href={`${base}ru/`}><img src={img('ui/flag-ru.png')} alt="RU" onerror="this.style.display='none'" />🇷🇺</a>
+    <a class="flag" class:list={[{ active: lang === 'en' }]} href={`${base}en/`}><img src={img('ui/flag-en.png')} alt="EN" onerror="this.style.display='none'" />🇬🇧</a>
+    <a class="flag" href="https://www.donationalerts.com/r/azanomat" target="_blank" rel="noopener" title={lang === 'ru' ? 'Угостите меня кофе' : 'Buy me a coffee'} style="text-decoration:none">
+      <img src={img('ui/coffee.png')} alt="☕" style="width:100%;height:100%;object-fit:contain" onerror="this.onerror=null;this.outerHTML='<span style=&quot;font-size:1.7rem;line-height:1&quot;>☕</span>'" />
+    </a>
+    <span class="lang-slot"></span>
+    <span class="lang-slot dark"></span>
+    <span class="lang-slot"></span>
+    <span class="lang-slot"></span>
   </div>
+
+  <script define:vars={{ base }}>
+    const applyZoom = () => { document.documentElement.style.zoom = (window.innerWidth / 1280).toFixed(3); };
+    applyZoom(); window.addEventListener('resize', applyZoom);
+
+    document.querySelectorAll('.faction-slot').forEach((slot) => {
+      const pop = slot.querySelector('.faction-pop');
+      slot.addEventListener('mouseenter', () => {
+        if (!pop) return;
+        pop.style.display = 'flex';
+      });
+      slot.addEventListener('mouseleave', () => { if (pop) pop.style.display = 'none'; });
+    });
+
+    const click = new Audio(base + 'audio/click.mp3');
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('button, a.flag, a.mission-btn')) { click.currentTime = 0; click.play().catch(() => {}); }
+    }, true);
+  </script>
+
+  <style>
+    .menu-strip::-webkit-scrollbar { display: none; }
+    .mission-btn {
+      position: relative;
+      display: block;
+      padding: 10px 18px;
+      background: #1d2a5e var(--tex-blue) center / cover;
+      border: 2px solid #a8863c;
+      box-shadow: 0 0 0 1px #000, inset 0 0 12px rgba(0, 0, 0, .55);
+      color: #e9c464;
+      font-family: inherit;
+      font-size: 1.05rem;
+      letter-spacing: .02em;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .mission-btn.soon {
+      color: #9aa0a8;
+      border-color: #5a5e63;
+      cursor: default;
+    }
+    .mission-btn:hover {
+      color: #ffe08a;
+      box-shadow: 0 0 0 1px #000, inset 0 0 12px rgba(0, 0, 0, .35), 0 0 10px rgba(233, 196, 100, .45);
+    }
+    .mission-desc {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      width: 380px;
+      max-height: 320px;
+      overflow: auto;
+      padding: 12px 14px;
+      background: #1d2a5e var(--tex-blue) center / cover;
+      border: 2px solid #a8863c;
+      box-shadow: 0 0 0 1px #000, inset 0 0 14px rgba(0, 0, 0, .55);
+      color: #cfd6ff;
+      font-family: inherit;
+      font-size: .9rem;
+      line-height: 1.5;
+      text-align: justify;
+      white-space: normal;
+      z-index: 45;
+    }
+    .mission-desc b {
+      display: block;
+      margin-bottom: 6px;
+      color: #e9c464;
+      font-size: 1rem;
+    }
+    .mission-btn:hover .mission-desc { display: block; }
+  </style>
 </body>
 </html>

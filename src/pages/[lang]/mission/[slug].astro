@@ -16,15 +16,33 @@ const d = mission.data;
 const lang = d.lang;
 const slug = mission.id.replace(/\.md$/, '').replace(/-(ru|en)$/, '');
 const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : import.meta.env.BASE_URL + '/';
+const ASSETS = d.assets || 'sfak';
+const BONUSES = d.bonusOptions || (lang === 'ru' ? ['Руда', 'Кристаллы', 'Ammo Cart War Machine'] : ['Ore', 'Crystals', 'Ammo Cart War Machine']);
 const img = (p: string) => base + 'images/' + p;
+
 function slugify(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '');
 }
+function cardPaths(file: string, kind: string): string[] {
+  const shared = 'cards/' + file;
+  const sharedLang = 'cards/' + lang + '/' + file;
+  const mis = ASSETS + '/cards/' + file;
+  const misLang = ASSETS + '/cards/' + lang + '/' + file;
+  if (kind === 'spec') return [misLang, mis, sharedLang, shared];
+  return [sharedLang, shared];
+}
+function fbAttr(list: string[]): string {
+  return list.slice(1).map(function (p) { return base + 'images/' + p; }).join('|');
+}
+const ONERR = "const n=(this.dataset.fallback||'').split('|').filter(Boolean);if(n.length){this.dataset.fallback=n.slice(1).join('|');this.src=n[0];}else{this.style.display='none'}";
 function cardImg(card: any) {
-  if (card.img) return img(card.img);
+  if (card.img) return { src: base + 'images/' + card.img, fb: '' };
   const name = slugify(card.title || '');
   const amt = (card.amount || '').toLowerCase();
-  return img('sfak/ai/cards/' + (amt ? `${name}-${amt}.png` : `${name}.png`));
+  const a = (amt ? amt + '-' + name : name) + '.png';
+  const b = (amt ? name + '-' + amt : name) + '.png';
+  const list = cardPaths(a, 'unit').concat(cardPaths(b, 'unit'));
+  return { src: base + 'images/' + list[0], fb: fbAttr(list) };
 }
 
 const KW: Record<string, string> = { Statistic: 'kw-stat', Specialty: 'kw-spec', Ability: 'kw-abil', Spell: 'kw-spell' };
@@ -32,7 +50,7 @@ function deckHtml(c: string) {
   const i = c.lastIndexOf(' ');
   const last = c.slice(i + 1);
   const cls = KW[last];
-  return cls ? c.slice(0, i + 1) + `<span class="${cls}">${last}</span>` : c;
+  return cls ? c.slice(0, i + 1) + '<span class="' + cls + '">' + last + '</span>' : c;
 }
 
 const STARS: Record<string, string> = {
@@ -43,8 +61,9 @@ const STARS: Record<string, string> = {
 };
 function starFor(name: string) {
   const cls = STARS[name.trim()];
-    return cls ? `\u00A0<span class="${cls}">★</span>` : '';
+  return cls ? '\u00A0<span class="' + cls + '">★</span>' : '';
 }
+
 const counts: Record<string, number> = {};
 for (const c of d.mainHero.handDeck) {
   const m = c.match(/^(\d+)\s*x\s+(.+)$/i);
@@ -55,10 +74,68 @@ for (const c of d.mainHero.handDeck) {
   else if (name.includes('defense')) counts.defense = n;
   else if (name.includes('power')) counts.power = n;
   else if (name.includes('knowledge')) counts.knowledge = n;
-  else if (name.includes('sharpshooters')) counts.sharpshooters = n;
-  else if (name.includes('magic arrow')) counts.magic = n;
-  else if (name.includes('archery')) counts.archery = n;
 }
+const statCards = [
+  { c: 'attack.png', n: counts.attack },
+  { c: 'defense.png', n: counts.defense },
+  { c: 'power.png', n: counts.power },
+  { c: 'knowledge.png', n: counts.knowledge },
+].filter(function (o) { return (o.n || 0) > 0; });
+const skillCards = d.mainHero.handDeck
+  .map(function (c: string) {
+    const m = c.match(/^(\d+)\s*x\s+(.+)$/i);
+    if (!m) return null;
+    const name = m[2].trim();
+    const words = name.split(' ');
+    const last = words[words.length - 1];
+    if (last !== 'Specialty' && last !== 'Ability' && last !== 'Spell') return null;
+    const kind = last === 'Specialty' ? 'spec' : (last === 'Ability' ? 'ability' : 'spell');
+    return { n: Number(m[1]), c: slugify(name) + '.png', kind: kind };
+  })
+  .filter(function (o) { return o !== null; });
+const unitCards = d.mainHero.army.split(',').map(function (a: string) { return slugify(a) + '.png'; });
+function deckCounts(hand: string[]) {
+  const c: Record<string, number> = {};
+  for (const ln of hand) {
+    const m = ln.match(/^(\d+)\s*x\s+(.+)$/i);
+    if (!m) continue;
+    const n = Number(m[1]);
+    const nm = m[2].toLowerCase();
+    if (nm.includes('attack')) c.attack = n;
+    else if (nm.includes('defense')) c.defense = n;
+    else if (nm.includes('power')) c.power = n;
+    else if (nm.includes('knowledge')) c.knowledge = n;
+  }
+  return c;
+}
+const heroSource: any[] = (d.heroes && d.heroes.length) ? d.heroes : [{ name: '', img: '', army: d.mainHero.army, handDeck: d.mainHero.handDeck }];
+const heroBlocks = heroSource.map(function (h: any) {
+  const cnt = deckCounts(h.handDeck);
+  return {
+    name: h.name || '',
+    imgSrc: h.img ? img(h.img) : img(ASSETS + '/hero.png'),
+    army: h.army,
+    hand: h.handDeck,
+    stats: [
+      { c: 'attack.png', n: cnt.attack },
+      { c: 'defense.png', n: cnt.defense },
+      { c: 'power.png', n: cnt.power },
+      { c: 'knowledge.png', n: cnt.knowledge },
+    ].filter(function (o) { return (o.n || 0) > 0; }),
+    skills: h.handDeck.map(function (c: string) {
+      const m = c.match(/^(\d+)\s*x\s+(.+)$/i);
+      if (!m) return null;
+      const name = m[2].trim();
+      const words = name.split(' ');
+      const last = words[words.length - 1];
+      if (last !== 'Specialty' && last !== 'Ability' && last !== 'Spell') return null;
+      const kind = last === 'Specialty' ? 'spec' : (last === 'Ability' ? 'ability' : 'spell');
+      return { n: Number(m[1]), c: slugify(name) + '.png', kind: kind };
+    }).filter(function (o: any) { return o !== null; }),
+    units: h.army.split(',').map(function (a: string) { return slugify(a) + '.png'; }),
+  };
+});
+
 const t = lang === 'ru' ? {
   mapTitle: 'КАРТА', townTitle: 'ГЛАВНЫЙ ГОРОД', heroTitle: 'ГЛАВНЫЙ ГЕРОЙ',
   aiTitle: 'НАСТРОЙКИ ИИ', winTitle: 'УСЛОВИЯ ПОБЕДЫ',
@@ -91,13 +168,35 @@ const t = lang === 'ru' ? {
   bonusNames: ['Ore', 'Crystals', 'Ammo Cart War Machine'],
 };
 
-const aiOrder = ['Aislinn', 'Galthran', 'Town'];
+const aiOrder = ['Aislinn', 'Galthran', 'Town', "Lord Fayette's Guards", 'Lord Fayette'];
 const aiSorted = [...d.aiSettings].sort((a: any, b: any) => aiOrder.indexOf(a.name) - aiOrder.indexOf(b.name));
 const prod = d.mainTown.production.split(' ');
 const res = d.mainTown.startingResources.split(' ');
 const resIcons = ['gold.png', 'ore.png', 'crystal.png'];
-const buildingIcons = ['🏰', '★', '☆'];
-const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
+const BICON: Record<string, string> = { bronze: 'star-o', silver: 'star-w', gold: 'star-g', citadel: 'b-icon' };
+const BCHAR: Record<string, string> = { bronze: '★', silver: '★', gold: '★', citadel: '🏰' };
+function bonusIconFor(text: string): string {
+  const s = String(text).toLowerCase();
+  if (s.includes('кристал') || s.includes('crystal')) return 'crystal.png';
+  if (s.includes('золот') || s.includes('gold')) return 'gold.png';
+  if (s.includes('руд') || s.includes('ore')) return 'ore.png';
+  if (s.includes('артефакт') || s.includes('artifact')) return 'artifact.png';
+  if (s.includes('улучш') || s.includes('бойцов') || s.includes('reinforce') || s.includes('upgrade')) return 'upgrade.png';
+  if (s.includes('поиск') || s.includes('search')) return 'spell.png';
+  return 'cart.png';
+}
+const bonusIcons = d.bonusOptions ? d.bonusOptions.map(bonusIconFor) : ['ore.png', 'crystal.png', 'cart.png'];
+const allMissions = await getCollection('missions');
+const langMissions = allMissions.filter((m: any) => m.data.lang === lang);
+const byFaction: Record<number, any[]> = {};
+for (const m of langMissions) {
+  const f = Number((m.data as any).faction ?? 1);
+  if (!byFaction[f]) byFaction[f] = [];
+  byFaction[f].push(m);
+}
+for (const k of Object.keys(byFaction)) byFaction[k].sort((a: any, b: any) => Number(a.data.order ?? 0) - Number(b.data.order ?? 0));
+const FACTION_COUNT = 13;
+const soonWord = lang === 'ru' ? 'Скоро…' : 'Soon…'; 
 ---
 
 <!DOCTYPE html>
@@ -111,20 +210,30 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
   <div class="topbar">{d.title}</div>
 
   <div class="screen">
-               <aside class="filmstrip">
-      {Array.from({ length: 12 }).map((_, i) => (
-        <img class:list={['thumb', { sel: i === 1 }]} src={img(`ui/thumb/t${i + 1}.png`)} alt="" onerror="this.onerror=null;this.src='/HOMM3-BoardGame/images/ui/thumb.png';" />
+          <aside class="filmstrip" style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;overflow:visible">
+      {Array.from({ length: FACTION_COUNT }).map((_, fi) => (
+        <div class="faction-slot" style="position:relative;flex:0 0 auto;width:46px">
+          <img class:list={['thumb', { sel: fi === Number(d.faction ?? 1) }]} style="width:46px;height:32px;object-fit:cover;display:block" src={img(`ui/thumb/t${fi + 1}.png`)} alt="" onerror="this.onerror=null;this.outerHTML='<span style=&quot;display:flex;align-items:center;justify-content:center;width:46px;height:32px;font-size:1.1rem;background:#20242a&quot;>🏰</span>'" />
+          <div class="faction-pop" style="display:none;position:absolute;left:46px;top:-6px;padding-left:10px;gap:10px;z-index:60;flex-direction:row;align-items:flex-start">
+                        {(byFaction[fi] || []).length
+              ? (byFaction[fi] || []).map((m: any) => (
+                  <a href={`${base}${lang}/mission/${m.id.replace(/\.md$/, '').replace(/-(ru|en)$/, '')}/`} style={`flex:0 0 auto;display:block;padding:8px 16px;background:#1d2a5e url('${img('ui/blue.jpg')}') center/cover;border:2px solid #a8863c;box-shadow:0 0 0 1px #000, inset 0 0 12px rgba(0,0,0,.55);color:#e9c464;font-family:inherit;font-size:1rem;line-height:1.2;white-space:nowrap;text-decoration:none`}>
+                    {m.data.title}
+                  </a>
+                ))
+              : [0, 1, 2].map(() => <span style={`flex:0 0 auto;display:block;padding:8px 16px;background:#1d2a5e url('${img('ui/blue.jpg')}') center/cover;border:2px solid #5a5e63;color:#9aa0a8;font-family:inherit;font-size:1rem;line-height:1.2;white-space:nowrap`}>{soonWord}</span>)}
+          </div>
+        </div>
       ))}
     </aside>
 
     <main class="stage" id="stage">
-
-                 <!-- КАРТА -->
+      <!-- КАРТА -->
       <section class="tab-pane active" id="pane-map">
         <h1 class="stage-title">{t.mapTitle}</h1>
         <div class="visual">
           <button class="nav-arrow" data-dir="-1"><img src={img('ui/arrow-left.png')} alt="◄" onerror="this.parentNode.textContent='◄'" /></button>
-          <img class="visual-img clean" src={img('sfak/map.png')} alt="Map" onerror="this.style.display='none'" />
+          <img class="visual-img clean" src={img(ASSETS + '/map.png')} alt="Map" onerror="this.style.display='none'" />
           <button class="nav-arrow" data-dir="1"><img src={img('ui/arrow-right.png')} alt="►" onerror="this.parentNode.textContent='►'" /></button>
         </div>
         <div class="squares">
@@ -153,12 +262,12 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
         </div>
       </section>
 
-            <!-- ГОРОД -->
+      <!-- ГОРОД -->
       <section class="tab-pane" id="pane-town">
         <h1 class="stage-title">{t.townTitle}</h1>
         <div class="visual">
           <button class="nav-arrow" data-dir="-1"><img src={img('ui/arrow-left.png')} alt="◄" onerror="this.parentNode.textContent='◄'" /></button>
-          <img class="visual-img" src={img('sfak/town.png')} alt="Town" onerror="this.style.display='none'" />
+          <img class="visual-img" src={img(ASSETS + '/town.png')} alt="Town" onerror="this.style.display='none'" />
           <button class="nav-arrow" data-dir="1"><img src={img('ui/arrow-right.png')} alt="►" onerror="this.parentNode.textContent='►'" /></button>
         </div>
         <div class="squares">
@@ -171,8 +280,8 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
           <div>
             <p class="col-head">{t.buildings}</p>
             <ul class="game-list" style="white-space:nowrap">
-              {d.mainTown.buildings.split(',').map((b: string, i: number) => (
-                <li>{b.trim()} <span class={i === 0 ? 'b-icon' : i === 1 ? 'star-o' : 'star-w'}>{buildingIcons[i] ?? '★'}</span></li>
+                           {d.mainTown.buildings.map((b: any) => (
+                <li>{b.name} <span class={BICON[b.icon] || 'star-o'}>{BCHAR[b.icon] || '★'}</span></li>
               ))}
             </ul>
           </div>
@@ -187,37 +296,48 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
         </div>
       </section>
 
-                 <!-- ГЕРОЙ -->
+    <!-- ГЕРОЙ -->
       <section class="tab-pane" id="pane-hero">
         <h1 class="stage-title">{t.heroTitle}</h1>
         <div class="visual">
           <button class="nav-arrow" data-dir="-1"><img src={img('ui/arrow-left.png')} alt="◄" onerror="this.parentNode.textContent='◄'" /></button>
-                    <div class="hero-grid">
-            <img class="hero-img" src={img('sfak/hero.png')} alt="Gelu" onerror="this.style.display='none'" />
-            <div class="hg-stats">
-              <p class="hand-title">{t.handDeckTitle}</p>
-              <div class="cards-row">
-                {[{ c: 'attack.png', n: counts.attack }, { c: 'defense.png', n: counts.defense }, { c: 'power.png', n: counts.power }, { c: 'knowledge.png', n: counts.knowledge }].map((o) => (
-                  <div class="card-wrap">
-                    <img class="card-img" src={img('sfak/cards/' + o.c)} alt="" onerror="this.style.display='none'" />
-                    <span class="card-count">{o.n ?? 1}</span>
-                  </div>
+          <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:10px">
+            {heroBlocks.length > 1 && (
+              <div style="display:flex;gap:10px;justify-content:center">
+                {heroBlocks.map((hb: any, hi: number) => (
+                  <button class="btn" data-hero-btn={hi} style={hi === 0 ? 'box-shadow:0 0 0 2px #e9c464' : ''}>{hb.name}</button>
                 ))}
               </div>
-            </div>
-            <div class="cards-row hg-units">
-              {['centaurs.png', 'dwarves.png', 'elves.png'].map((c) => (
-                <div class="card-wrap"><img class="card-img small" src={img('sfak/cards/' + c)} alt="" onerror="this.style.display='none'" /></div>
-              ))}
-            </div>
-            <div class="cards-row hg-skills">
-              {[{ c: 'sharpshooters.png', n: counts.sharpshooters }, { c: 'magic-arrow.png', n: counts.magic }, { c: 'archery.png', n: counts.archery }].map((o) => (
-                <div class="card-wrap">
-                  <img class="card-img small" src={img('sfak/cards/' + o.c)} alt="" onerror="this.style.display='none'" />
-                  <span class="card-count">{o.n ?? 1}</span>
+            )}
+            {heroBlocks.map((hb: any, hi: number) => (
+              <div class="hero-grid" data-hero-block={hi} style={hi === 0 ? '' : 'display:none'}>
+                <img class="hero-img" src={hb.imgSrc} alt="" onerror="this.style.display='none'" />
+                <div class="hg-stats">
+                  <p class="hand-title">{t.handDeckTitle}</p>
+                  <div class="cards-row">
+                    {hb.stats.map((o: any) => (
+                      <div class="card-wrap">
+                        <img class="card-img" src={base + 'images/' + cardPaths(o.c, 'stat')[0]} data-fallback={fbAttr(cardPaths(o.c, 'stat'))} onerror={ONERR} alt="" />
+                        <span class="card-count">{o.n}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+                <div class="cards-row hg-units">
+                  {hb.units.map((c: string) => (
+                    <div class="card-wrap"><img class="card-img small" src={base + 'images/' + cardPaths(c, 'unit')[0]} data-fallback={fbAttr(cardPaths(c, 'unit'))} onerror={ONERR} alt="" /></div>
+                  ))}
+                </div>
+                <div class="cards-row hg-skills">
+                  {hb.skills.map((o: any) => (
+                    <div class="card-wrap">
+                      <img class="card-img small" src={base + 'images/' + cardPaths(o.c, o.kind)[0]} data-fallback={fbAttr(cardPaths(o.c, o.kind))} onerror={ONERR} alt="" />
+                      <span class="card-count">{o.n}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
           <button class="nav-arrow" data-dir="1"><img src={img('ui/arrow-right.png')} alt="►" onerror="this.parentNode.textContent='►'" /></button>
         </div>
@@ -230,16 +350,24 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
         <div class="two-col">
           <div>
             <p class="col-head">{t.army}</p>
-            <ul class="game-list" style="white-space:nowrap">{d.mainHero.army.split(',').map((a: string) => <li set:html={a.trim() + starFor(a)} />)}</ul>
+            {heroBlocks.map((hb: any, hi: number) => (
+              <div data-hero-block={hi} style={hi === 0 ? '' : 'display:none'}>
+                <ul class="game-list" style="white-space:nowrap">{hb.army.split(',').map((a: string) => <li set:html={a.trim() + starFor(a)} />)}</ul>
+              </div>
+            ))}
           </div>
           <div>
             <p class="col-head">{t.yourDeck}</p>
-            <ul class="game-list" style="white-space:nowrap">{d.mainHero.handDeck.map((c: string) => <li set:html={deckHtml(c)} />)}</ul>
+            {heroBlocks.map((hb: any, hi: number) => (
+              <div data-hero-block={hi} style={hi === 0 ? '' : 'display:none'}>
+                <ul class="game-list" style="white-space:nowrap">{hb.hand.map((c: string) => <li set:html={deckHtml(c)} />)}</ul>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-            <!-- ИИ -->
+      <!-- ИИ -->
       <section class="tab-pane" id="pane-ai">
         <h1 class="stage-title">{t.aiTitle}</h1>
         <div class="visual">
@@ -252,12 +380,12 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
                   <div style="display:grid;grid-template-columns:repeat(2,auto);justify-content:center;gap:6px">
                     {ai.armyCards.map((card: any) => (
                       <div style="border:none;background:none;padding:2px;min-width:0">
-                        <img src={cardImg(card)} alt={card.title || ''} style="display:block;width:auto;height:96px;max-width:100%" onerror="this.style.display='none'" />
+                        <img src={cardImg(card).src} data-fallback={cardImg(card).fb} onerror={ONERR} alt={card.title || ''} style="display:block;width:auto;height:96px;max-width:100%" />
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <img src={img('sfak/ai/' + (ai.name === 'Aislinn' ? 'aislinn.png' : ai.name === 'Galthran' ? 'galthran.png' : 'town-army.png'))} alt="" style="max-height:240px;max-width:100%;display:block;margin:0 auto" onerror="this.style.display='none'" />
+                  <img src={img(ASSETS + '/ai/' + (ai.name === 'Aislinn' || ai.name === 'Эйслин' ? 'aislinn.png' : ai.name === 'Galthran' || ai.name === 'Галтрана' ? 'galthran.png' : 'town-army.png'))} alt="" style="max-height:240px;max-width:100%;display:block;margin:0 auto" onerror="this.style.display='none'" />
                 )}
               </div>
             ))}
@@ -290,7 +418,7 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
         </div>
       </section>
 
-                  <!-- УСЛОВИЯ ПОБЕДЫ -->
+      <!-- УСЛОВИЯ ПОБЕДЫ -->
       <section class="tab-pane" id="pane-win">
         <h1 class="stage-title">{t.winTitle}</h1>
         <div class="visual">
@@ -318,9 +446,9 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
     </main>
 
     <!-- ПРАВАЯ ПАНЕЛЬ -->
-        <aside class="sidebar" id="sidebar">
+    <aside class="sidebar" id="sidebar">
       <i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i>
-                  <p class="desc">{d.description}</p>
+      <p class="desc">{d.description}</p>
 
       <div class="checklist">
         <div class="check-head">{t.check}</div>
@@ -331,13 +459,13 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
         <button class="check-item" data-tab="win"><img class="ic no" src={img('ui/check-no.png')} alt="" onerror="this.style.display='none'" /><img class="ic yes" src={img('ui/check-yes.png')} alt="" onerror="this.style.display='none'" />{t.tabWin}</button>
       </div>
 
-                  <div class="meta-row"><span id="bonus-label">{t.bonusNames[0]}</span><span id="diff-label">{t.diffNames[0]}</span></div>
+      <div class="meta-row"><span id="bonus-label">{BONUSES[0]}</span><span id="diff-label">{t.diffNames[0]}</span></div>
 
-            <div class="resources">
+      <div class="resources">
         {bonusIcons.map((ic, i) => (
-          <button class:list={['res-slot', { selected: i === 0 }]} data-bonus={i}><img src={img('ui/' + ic)} alt="" onerror="this.style.display='none'" /></button>
+          <button class:list={['res-slot', { selected: i === 0 }]} data-bonus={i} data-name={BONUSES[i]}><img src={img('ui/' + ic)} alt="" onerror="this.outerHTML='🎁'" /></button>
         ))}
-                        <button class="res-slot" id="diff-slot" title="difficulty">
+        <button class="res-slot" id="diff-slot" title="difficulty">
           <img class="chess-img" id="chess-img" src={img('ui/pawn.png')} alt=""
             onerror="this.style.display='none';document.getElementById('chess-fb').style.display='block';"
             onload="this.style.display='block';document.getElementById('chess-fb').style.display='none';" />
@@ -354,10 +482,13 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
     <GameConsole mission={mission} lang={lang} base={base} />
   </div>
 
-    <div class="bottombar">
-      <button class="btn" id="bgm-toggle">🔊</button>
-    <a class="flag" class:list={[{ active: lang === 'ru' }]} href={`${base}ru/mission/${slug}/`}><img src={img('ui/flag-ru.png')} alt="RU" onerror="this.style.display='none'" />🇷🇺</a>
-    <a class="flag" class:list={[{ active: lang === 'en' }]} href={`${base}en/mission/${slug}/`}><img src={img('ui/flag-en.png')} alt="EN" onerror="this.style.display='none'" />🇬🇧</a>
+  <div class="bottombar">
+    <button class="btn" id="bgm-toggle">🔊</button>
+        <a class="flag" class:list={[{ active: lang === 'ru' }]} href={`${base}ru/`}><img src={img('ui/flag-ru.png')} alt="RU" onerror="this.style.display='none'" />🇷🇺</a>
+    <a class="flag" class:list={[{ active: lang === 'en' }]} href={`${base}en/`}><img src={img('ui/flag-en.png')} alt="EN" onerror="this.style.display='none'" />🇬🇧</a>
+    <a class="flag" href="https://www.donationalerts.com/r/azanomat" target="_blank" rel="noopener" title={lang === 'ru' ? 'Угостите меня кофе' : 'Buy me a coffee'} style="text-decoration:none">
+      <img src={img('ui/coffee.png')} alt="☕" style="width:100%;height:100%;object-fit:contain" onerror="this.onerror=null;this.outerHTML='<span style=&quot;font-size:1.7rem;line-height:1&quot;>☕</span>'" />
+    </a>
     <span class="lang-slot"></span>
     <span class="lang-slot dark"></span>
     <span class="lang-slot"></span>
@@ -423,7 +554,7 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
       s.addEventListener('click', () => {
         bonusIdx = Number(s.getAttribute('data-bonus'));
         document.querySelectorAll('.res-slot[data-bonus]').forEach((x) => x.classList.toggle('selected', x === s));
-        bonusLabel.textContent = bonusNamesL[bonusIdx];
+                bonusLabel.textContent = s.dataset.name || bonusNamesL[bonusIdx];
         beginUpdate();
       }));
 
@@ -437,7 +568,16 @@ const bonusIcons = ['ore.png', 'crystal.png', 'cart.png'];
       if (chessFb) chessFb.textContent = pieces4[diffIdx];
       beginUpdate();
     });
-
+    document.querySelectorAll('[data-hero-btn]').forEach((b) => b.addEventListener('click', () => {
+      const i = Number(b.getAttribute('data-hero-btn'));
+      document.querySelectorAll('[data-hero-btn]').forEach((x) => { x.style.boxShadow = (x === b) ? '0 0 0 2px #e9c464' : ''; });
+      document.querySelectorAll('[data-hero-block]').forEach((g) => { g.style.display = (Number(g.getAttribute('data-hero-block')) === i) ? '' : 'none'; });
+    }));
+        document.querySelectorAll('.faction-slot').forEach((slot) => {
+      const pop = slot.querySelector('.faction-pop');
+      slot.addEventListener('mouseenter', () => { if (pop) pop.style.display = 'flex'; });
+      slot.addEventListener('mouseleave', () => { if (pop) pop.style.display = 'none'; });
+    });
     beginBtn.addEventListener('click', () => {
       started = true;
       document.getElementById('stage').style.display = 'none';

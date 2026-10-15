@@ -2,27 +2,38 @@
 title: "1. Search for a Killer"
 lang: "en"
 difficulty: "impossible"
-description: "When two AvLee lords are found dead, Gem and Gelu set out on their vengeful quest to seek justice. Their fates, however, unexpectedly lead them to find much more than they had hoped for. Will they manage to foil the sinister plot brewing on AvLee borders, or has the gruesome discovery come too late to stop the Necromancers' schemes?"
+order: 1
+faction: 1
+assets: "sfak"
+audioDir: "events"
+description: "When the bodies of two AvLee lords are discovered, Gem and Gelu embark on their vengeful quest for justice. Yet fate unexpectedly leads them to uncover far more than they hoped. Will they manage to thwart the sinister conspiracy brewing on the borders of AvLee, or has the dreadful discovery come too late to stop the necromancers' plans?"
+escalation: 7
 goals:
-  - "Aislinn's Army"
-  - "Galthran's Army"
+  - "Aislinn Army"
+  - "Galthran Army"
   - "Town Army"
 loseConditions:
-  - "You lose control of your Faction Town"
-  - "You lose a fight with an Enemy Army"
-  - "You fail to defeat all Enemy Armies before the end of the 11th round"
+  - "Lose control of your Faction Town"
+  - "Lose a fight with an Enemy Army"
+  - "Fail to win before the end of the 11th Round"
 additionalRules:
   - "The Enemy Heroes move after the player"
-  - "You can enter a blocked field if an Enemy Hero is in that field"
-  - "After defeating an Enemy Hero's Army, gain 2 gold"
-  - "The first time a Hero enters an Obelisk field, they trigger a story event. After that, when your Hero enters another Obelisk field for the first time, roll 2 Treasure dice and resolve one of them (your choice)"
+  - "You may move onto a field occupied by an Enemy Hero"
+  - "After defeating an Enemy Hero, gain 2 crystals"
+  - "After visiting an Obelisk an event is triggered; if you visit a second Obelisk, roll 2 Treasure dice and choose one"
 mapSettings:
   starting: "1 x Necropolis(S1), 2 x Rampart(S4)"
   far: "2 x Rampart(F10 – F12)"
   near: "1 x Necropolis(N1, N4), 2 x Rampart(N7, N8)"
   additional: "1 x random Dungeon Far tile(F2, F5, F8), 1 x random Dungeon Near tile(N2, N5)"
 mainTown:
-  buildings: "Citadel, Housing Estate, Spring upon Arches"
+  buildings:
+    - name: "Citadel"
+      icon: "citadel"
+    - name: "Housing Estate"
+      icon: "bronze"
+    - name: "Spring upon Arches"
+      icon: "silver"
   production: "15 0 0"
   startingResources: "14 4 0"
 mainHero:
@@ -35,7 +46,6 @@ mainHero:
     - "1 x Sharpshooters Specialty"
     - "1 x Archery Ability"
     - "1 x Magic Arrow Spell"
-escalation: 7
 aiSettings:
   - name: "Galthran"
     army: "Pack Skeletons, Pack Zombies, Few Liches, Rogues"
@@ -73,6 +83,7 @@ aiSettings:
       - title: "Black Dragons"
         amount: "Few"
       - img: "sfak/ai/town-cards.png"
+
 events:
   - id: 1
     title: "MYSTERIOUS DEATH"

@@ -4,6 +4,12 @@ const { mission, lang, base } = Astro.props;
 const d = mission.data;
 const ru = lang === 'ru';
 const ESC = Number(d.escalation || 0);
+const ESC_EV = Number(d.escalationOnEvent || 0);
+const slug = mission.id.replace(/\.md$/, '').replace(/-(ru|en)$/, '');
+const AUTO: Record<number, number[]> = slug === 'final-peace' ? { 1: [0], 4: [1] } : (slug === 'agents-of-vengeance' ? { 1: [0], 3: [1], 7: [2] } : { 1: [0], 7: [4] });
+const RUINS_ROUND = slug === 'final-peace' ? 0 : 5;
+const PLACE_ROUND = slug === 'final-peace' ? 7 : 0;
+const NEXT = slug === 'search-for-a-killer' ? 'final-peace' : (slug === 'final-peace' ? 'agents-of-vengeance' : null);
 
 const gc = ru ? {
   round: 'РАУНД', resourceRound: 'РЕСУРСНЫЙ РАУНД', startRoundLbl: 'НАЧАЛЬНЫЙ РАУНД', astroRound: 'РАУНД АСТРОЛОГОВ',
@@ -41,61 +47,29 @@ const DIFF_LINES = ru ? [
   'roll 1 [Resource] dice and gain resources OR draw the first minor artifact from the Artifact deck',
   'has no bonus',
 ];
-const BONUS_LINES = ru ? ['+4 [руда]', '+2 [кристалы]', 'Ammo Cart War Machine'] : ['+4 [Ore]', '+2 [Crystals]', 'Ammo Cart War Machine'];
+const BONUS_LINES = d.bonusOptions || (ru ? ['+4 [руда]', '+2 [кристалы]', 'Ammo Cart War Machine'] : ['+4 [Ore]', '+2 [Crystals]', 'Ammo Cart War Machine']);
+const MAX_ROUND = Number(d.rounds || 11);
 
-const GOLD_ROUNDS = [5, 7];
-const MAX_ROUND = 11;
-
-const SCRIPT: Record<number, { player: string[]; ai: string[] }> = {
-  1: {
-    player: [],
-    ai: ru ? [
-      '- Раунд 1',
-      'Ходит ИИ. Правила перемещения и сражения смотри по кнопке ИИ',
-      'aislinn:- Ходит Армия Эйслин: 3 [очка перемещения] + 1 [очка перемещения] (Rogues)',
-      'galthran:- Ходит Армия Галтрана: 3 [очка перемещения]',
-      'Конец хода',
-    ] : [
-      '- Round 1',
-      'AI turns. For movement and combat rules, see the AI button.',
-      'aislinn:- Aislinn Army turns: 3 [Movement Points] + 1 [Movement Points] (Rogues)',
-      'galthran:- Galthran Army turns: 3 [Movement Points]',
-      'End of turn',
-    ],
-  },
-};
-for (let n = 2; n <= 11; n++) {
+const SCRIPT: Record<number, string[]> = {};
+for (let n = 2; n <= 16; n++) {
   const astro = n % 2 === 0;
-  SCRIPT[n] = {
-    player: ru ? [
-      `- Раунд ${n} начался.`,
-      '- Можете сбросить необходимое количество карт с руки и взять столько же.',
-      astro ? '- Раунд Астрологов, возьмите карту Астрологов.' : '- Ресурсный Раунд, возьмите ресурсы.',
-      n < 5 ? '- Если вы захватите Обелиск или победите вражескую армию — подтвердите галочкой выполненных заданий внизу.' : '- Если вы победите вражескую армию — подтвердите галочкой выполненных заданий внизу.',
-      '- Не забудьте воспользоваться жетоном Найма, Постройки и Гильдии Магии.',
-      '- Таблицу Сложности можно посмотреть, щелкнув на кнопку Героя.',
-    ] : [
-      `- Round ${n} has begun.`,
-      '- You may discard the required number of cards from your hand and draw the same number.',
-      astro ? '- Astrologers Round: draw an Astrologers card.' : '- Resource Round: draw resources.',
-      n < 5 ? '- If you capture the Obelisk or defeat an enemy army, confirm it with a check mark below.' : '- If you defeat an enemy army, confirm it with a check mark below.',
-      "- Don't forget to use the Recruitment, Construction and Magic Guild tokens.",
-      '- The Difficulty Table can be viewed by clicking the Hero button.',
-    ],
-    ai: ru ? [
-      `- Раунд ${n}`,
-      'Ходит ИИ. Правила перемещения и сражения смотри по кнопке ИИ',
-      'aislinn:- Ходит Армия Эйслин: 3 [очка перемещения] + 1 [очка перемещения] (Rogues)',
-      'galthran:- Ходит Армия Галтрана: 3 [очка перемещения]',
-      'Конец хода',
-    ] : [
-      `- Round ${n}`,
-      'AI turns. For movement and combat rules, see the AI button.',
-      'aislinn:- Aislinn Army turns: 3 [Movement Points] + 1 [Movement Points] (Rogues)',
-      'galthran:- Galthran Army turns: 3 [Movement Points]',
-      'End of turn',
-    ],
-  };
+  SCRIPT[n] = ru ? [
+    `- Раунд ${n} начался.`,
+    '- Можете сбросить необходимое количество карт с руки и взять столько же.',
+    astro ? '- Раунд Астрологов, возьмите карту Астрологов.' : '- Ресурсный Раунд, возьмите ресурсы.',
+    ...(slug === 'search-for-a-killer' && n < 5 ? ['- Если вы захватите Обелиск или победите вражескую армию — подтвердите галочкой выполненных заданий внизу.'] : []),
+    ...(slug !== 'search-for-a-killer' ? ['- Если вы победите вражескую армию — подтвердите галочкой выполненных заданий внизу.'] : []),
+    '- Не забудьте воспользоваться жетоном Найма, Постройки и Гильдии Магии.',
+    '- Таблицу Сложности можно посмотреть, щелкнув на кнопку Книга.',
+  ] : [
+    `- Round ${n} has begun.`,
+    '- You may discard the required number of cards from your hand and draw the same number.',
+    astro ? '- Astrologers Round: draw an Astrologers card.' : '- Resource Round: draw resources.',
+    ...(slug === 'search-for-a-killer' && n < 5 ? ['- If you capture the Obelisk or defeat an enemy army, confirm it with a check mark below.'] : []),
+    ...(slug !== 'search-for-a-killer' ? ['- If you defeat an enemy army, confirm it with a check mark below.'] : []),
+    "- Don't forget to use the Recruitment, Construction and Magic Guild tokens.",
+    '- The Difficulty Table can be viewed by clicking the Book button.',
+  ];
 }
 ---
 
@@ -107,7 +81,7 @@ for (let n = 2; n <= 11; n++) {
       <p class="round-sub" id="phase-turn">{gc.yourTurn}</p>
       <p class="round-sub diff" id="diff-line"></p>
     </div>
-            <div class="tracker-wrap">
+    <div class="tracker-wrap">
       <div class="track-buttons">
         <button class="track-btn" id="g-btn-heroes" title={gc.btnHeroes}><img src={base + 'images/ui/btn-heroes.png'} alt="⚔" onerror="this.outerHTML='⚔'" /></button>
         <button class="track-btn" id="g-btn-map" title={gc.btnMap}><img src={base + 'images/ui/btn-map.png'} alt="🗺" onerror="this.outerHTML='🗺'" /></button>
@@ -118,7 +92,6 @@ for (let n = 2; n <= 11; n++) {
         <div class="track-row">{[1,3,5,7,9,11,13,15].map((n) => <span class="tcell" data-n={n}>{n}</span>)}</div>
         <div class="track-row">{[2,4,6,8,10,12,14,16].map((n) => <span class="tcell" data-n={n}>{n}</span>)}</div>
       </div>
-    </div>
     </div>
   </div>
 
@@ -144,8 +117,15 @@ for (let n = 2; n <= 11; n++) {
     <div>
       <p class="col-head">{gc.add}</p>
       <ul class="cond-col">
-        <li><button class="cond-btn" data-cond="obelisk"><span class="cond-ic">⊘</span><em>{gc.obelisk}</em></button></li>
-        <li id="necro-row" hidden><button class="cond-btn" data-cond="necro"><span class="cond-ic">⊘</span><em>{gc.necro}</em></button></li>
+        {slug === 'search-for-a-killer' && (
+          <li><button class="cond-btn" data-cond="obelisk"><span class="cond-ic">⊘</span><em>{gc.obelisk}</em></button></li>
+        )}
+        {slug === 'search-for-a-killer' && (
+          <li id="necro-row" hidden><button class="cond-btn" data-cond="necro"><span class="cond-ic">⊘</span><em>{gc.necro}</em></button></li>
+        )}
+        {(d.triggers || []).map((tr: any, ti: number) => (
+          <li><button class="cond-btn" data-trigger={ti}><span class="cond-ic">⊘</span><em>{tr.text}</em></button></li>
+        ))}
       </ul>
     </div>
   </div>
@@ -184,6 +164,37 @@ for (let n = 2; n <= 11; n++) {
   </div>
 </div>
 
+<div class="event-overlay" id="choice2-overlay" hidden>
+  <div class="eo-window">
+    <h3>{ru ? 'Если вы победили, выберите:' : 'If you are victorious, choose:'}</h3>
+    <div class="eo-controls" style="flex-direction:column;gap:10px">
+      <button class="btn" id="choice2-a">{ru ? 'Потерять 1 очко передвижения и получить Положительную Мораль' : 'Lose 1 Movement Point and gain Positive Morale'}</button>
+      <button class="btn" id="choice2-b">{ru ? 'Получить Отрицательную Мораль' : 'Gain Negative Morale'}</button>
+    </div>
+  </div>
+</div>
+
+<div class="event-overlay" id="choice3-overlay" hidden>
+  <div class="eo-window">
+    <h3>{ru ? 'Выберите одно:' : 'Choose one:'}</h3>
+    <div class="eo-controls" style="flex-direction:column;gap:10px">
+      <button class="btn" id="choice3-a">{ru ? '+3 кристалла' : '+3 Crystals'}</button>
+      <button class="btn" id="choice3-b">{ru ? '+10 золота' : '+10 Gold'}</button>
+      <button class="btn" id="choice3-c">{ru ? 'Поиск (4) в колоде артефактов' : 'Search (4) the Artifact deck'}</button>
+    </div>
+  </div>
+</div>
+
+<div class="event-overlay" id="choice4-overlay" hidden>
+  <div class="eo-window">
+    <h3>{ru ? 'Выберите одно:' : 'Choose one:'}</h3>
+    <div class="eo-controls" style="flex-direction:column;gap:10px">
+      <button class="btn" id="choice4-a">{ru ? 'Усилен серебряный отряд — переверните на Few; усилен бронзовый — сбросьте' : 'A silver unit is reinforced — flip to Few; a bronze unit — discard it'}</button>
+      <button class="btn" id="choice4-b">{ru ? 'Ни одно условие не подходит — игнорируйте эффект' : 'None of the conditions apply — ignore this effect'}</button>
+    </div>
+  </div>
+</div>
+
 <div class="event-overlay" id="defeat-overlay" hidden>
   <div class="eo-window">
     <h3>{gc.lost}</h3>
@@ -196,18 +207,21 @@ for (let n = 2; n <= 11; n++) {
   </div>
 </div>
 
-<div class="event-overlay" id="info-overlay" hidden>
+<div class="event-overlay" id="next-scenario-overlay" hidden>
   <div class="eo-window">
-    <h3>{ru ? 'Информация' : 'Information'}</h3>
-    <img src={base + 'images/ui/info-' + lang + '.png'} alt="" style="width:100%" onerror="this.style.display='none'" />
-    <div class="eo-controls"><button class="btn" id="info-close">{gc.close}</button></div>
+    <h3 id="next-title"></h3>
+    <p id="next-text" style="text-align:center;margin:12px 0"></p>
+    <div class="eo-controls" style="flex-direction:column;gap:10px">
+      <a class="btn" id="next-btn" href="#">→</a>
+      <button class="btn" id="next-close">{gc.close}</button>
+    </div>
   </div>
 </div>
 
 <div class="event-overlay" id="pdf-overlay" hidden>
   <div class="eo-window pdf-win">
-    <iframe id="pdf-frame" src="" style="width:100%;border:none" title="AI rules"></iframe>
-    <p style="text-align:center;font-size:.85rem;color:#cfd6ff">{ru ? 'Если правил не видно — нажми ↗' : 'If the rules are not visible — press ↗'}</p>
+    <iframe id="pdf-frame" src="" style="width:100%;border:none" title="rules"></iframe>
+    <p style="text-align:center;font-size:.85rem;color:#cfd6ff">{ru ? 'Если документа не видно — нажми ↗' : 'If the document is not visible — press ↗'}</p>
     <div class="eo-controls">
       <button class="btn" id="pdf-open">↗</button>
       <button class="btn" id="pdf-close">{gc.close}</button>
@@ -219,9 +233,10 @@ for (let n = 2; n <= 11; n++) {
 <audio id="bgm" loop src={base + 'audio/bgm.mp3'}></audio>
 <audio id="ev-audio"></audio>
 
-<script define:vars={{ events: d.events, goals: d.goals, lang, base, gc, SCRIPT, DIFF_NAMES, DIFF_LINES, BONUS_LINES, MAX_ROUND, ESC }}>
+<script define:vars={{ events: d.events, goals: d.goals, lang, base, gc, SCRIPT, DIFF_NAMES, DIFF_LINES, BONUS_LINES, MAX_ROUND, ESC, ESC_EV, slug, AUTO, RUINS_ROUND, PLACE_ROUND, NEXT, audioDir: d.audioDir || 'events', startRes: d.mainTown?.startingResources || '14 4 0', aiArmy0: d.aiSettings?.[0]?.army || '', triggers: d.triggers || [], goalTriggers: d.goalTriggers || [] }}>
   let round = 1;
   let phase = 'player';
+  let pendingNext = false;
   const st = { diff: 0, bonus: 0 };
   const read = new Set();
   const fired = new Set();
@@ -232,12 +247,17 @@ for (let n = 2; n <= 11; n++) {
   const diffLine = document.getElementById('diff-line');
   const roundType = document.getElementById('round-type');
 
+    ['event-overlay', 'choice-overlay', 'choice2-overlay', 'choice3-overlay', 'choice4-overlay', 'defeat-overlay', 'next-scenario-overlay', 'pdf-overlay'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+  });
+
   const clickS = new Audio(base + 'audio/click.mp3');
   document.addEventListener('click', (e) => {
     if (e.target.closest('button, a.flag')) { clickS.currentTime = 0; clickS.play().catch(() => {}); }
   }, true);
 
-  const ICONS = { 'золото': 'gold.png', 'gold': 'gold.png', 'руда': 'ore.png', 'оре': 'ore.png', 'руды': 'ore.png', 'кристалы': 'crystal.png', 'crystals': 'crystal.png', 'кристала': 'crystal.png', 'ресурсов': 'dice.png', 'resource': 'dice.png', 'очка перемещения': 'move.png', 'movement points': 'move.png', 'очка передвижения': 'move.png' };
+  const ICONS = { 'золото': 'gold.png', 'gold': 'gold.png', 'руда': 'ore.png', 'оре': 'ore.png', 'руды': 'ore.png', 'кристалы': 'crystal.png', 'кристалла': 'crystal.png', 'кристалл': 'crystal.png', 'crystals': 'crystal.png', 'crystal': 'crystal.png', 'кристала': 'crystal.png', 'ресурсов': 'dice.png', 'resource': 'dice.png', 'очка перемещения': 'move.png', 'movement points': 'move.png', 'очка передвижения': 'move.png', 'очко передвижения': 'move.png', 'положительная мораль': 'morale-pos.png', 'positive morale': 'morale-pos.png', 'отрицательная мораль': 'morale-neg.png', 'negative morale': 'morale-neg.png', 'урон': 'damage.png', 'damage': 'damage.png' };
   function icons(html) {
     return String(html).replace(/\[([^\]]+)\]/g, (m, t) => {
       const k = String(t).toLowerCase().trim();
@@ -251,19 +271,19 @@ for (let n = 2; n <= 11; n++) {
     consoleEl.appendChild(p);
     consoleEl.scrollTop = consoleEl.scrollHeight;
   }
-    function armyName(i) {
-    const g = String(goals[i] || '');
-    let m = g.match(/Арми\w+\s+(.+)$/i);
-    if (m) return m[1].trim();
-    m = g.match(/^(.+?)\s+Army$/i);
-    if (m) return m[1].replace(/^(Defeat|Fight)\s+(the\s+)?/i, '').trim();
-    return g;
-  }
   function emit(l) {
     if (l.startsWith('red:')) line(l.slice(4), 'cl-red');
     else if (l.startsWith('dim:')) line(l.slice(4), 'cl-dim');
     else if (l.startsWith('gold:')) line(l.slice(5), 'cl-gold');
     else line(l);
+  }
+  function armyName(i) {
+    const g = String(goals[i] || '');
+    let m = g.match(/^Арми[а-яё]+\s+(.+)$/i);
+    if (m) return m[1].trim();
+    m = g.match(/^(.+?)\s+Army$/i);
+    if (m) return m[1].replace(/^(Defeat|Fight)\s+(the\s+)?/i, '').trim();
+    return g;
   }
 
   function openEvent(i) {
@@ -272,8 +292,9 @@ for (let n = 2; n <= 11; n++) {
     document.getElementById('eo-text').innerHTML = ev.content.split('\n').filter((s) => s.trim())
       .map((s) => `<p>${s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`).join('');
     overlay.hidden = false;
+    overlay.style.display = 'flex';
     overlay.dataset.ev = String(i);
-    audio.src = `${base}audio/events/${lang}/event-${i + 1}.mp3`;
+    audio.src = `${base}audio/${audioDir}/${lang}/event-${i + 1}.mp3`;
     audio.play().catch(() => {});
   }
   function fireEvent(i) {
@@ -284,55 +305,106 @@ for (let n = 2; n <= 11; n++) {
   }
   function closeEvent() {
     const i = Number(overlay.dataset.ev);
-    overlay.hidden = true; audio.pause();
+    overlay.hidden = true; overlay.style.display = ''; audio.pause();
     if (!read.has(i)) {
       read.add(i);
       document.querySelectorAll('.ev-btn')[i]?.classList.add('read');
       line(`<s>${events[i].title}</s> — ${gc.read}`, 'cl-dim');
-      if (i === 0) {
-        line(lang === 'ru' ? '- Переверните один из Ближних Фрагментов Карты Оплота (IV-V)' : '- Flip one Rampart Near Tile on the map (IV-V)', 'cl-red');
-        line(lang === 'ru' ? `- Захватите Обелиск до конца 4 раунда, чтобы прочесть <u>${events[1].title}</u>` : `- Capture the Obelisk before the end of round 4 to read <u>${events[1].title}</u>`, 'cl-red');
-        (lang === 'ru'
-          ? ['- Не забудьте воспользоваться жетоном Найма, Постройки и Гильдии Магии.', '- Таблицу Сложности можно посмотреть, щелкнув на кнопку Героя.']
-          : ["- Don't forget to use the Recruitment, Construction tokens and the Magic Guild.", '- The Difficulty Table can be viewed by clicking the Hero button.']
-        ).forEach((l) => line(l));
-        const b = document.getElementById('bgm');
-        if (b) b.volume = 0.25;
+      if (slug === 'search-for-a-killer') {
+        if (i === 0) {
+          line(lang === 'ru' ? '- Переверните один из Ближних Фрагментов Карты Оплота (IV-V)' : '- Flip one Rampart Near Tile on the map (IV-V)', 'cl-red');
+          line(lang === 'ru' ? `- Захватите Обелиск до конца 4 раунда, чтобы прочесть <u>${events[1].title}</u>` : `- Capture the Obelisk before the end of round 4 to read <u>${events[1].title}</u>`, 'cl-red');
+          (lang === 'ru'
+            ? ['- Не забудьте воспользоваться жетоном Найма, Постройки и Гильдии Магии.', '- Таблицу Сложности можно посмотреть, щелкнув на кнопку Героя.']
+            : ["- Don't forget to use the Recruitment, Construction tokens and the Magic Guild.", '- The Difficulty Table can be viewed by clicking the Hero button.']
+          ).forEach((l) => line(l));
+          const b = document.getElementById('bgm');
+          if (b) b.volume = 0.25;
+        }
+        if (i === 1) line(lang === 'ru' ? `- Сразитесь с Армией ${armyName(0)}` : `- Fight the ${armyName(0)} Army`, 'cl-red');
+        if (i === 2) {
+          line(lang === 'ru' ? '- Получите +8 [руда] и +2 [очка передвижения] на этот раунд' : '- Gain +8 [Ore] and +2 [Movement Points] for this round', 'cl-red');
+          line(lang === 'ru'
+            ? `- Разместите Армию ${armyName(0)} на клетке Обелиска Ближних Фрагментов Карты Оплота (IV-V). Если Фрагмент с Обелиском не разведан, переверните все Фрагменты Карты Оплота (IV-V) и расположите на клетке Обелиска Армию ${armyName(0)}. Добавьте существо Few Vampires в её армию.`
+            : `- Place the ${armyName(0)} Army on the Obelisk space of the Near Stronghold Map Fragments (IV-V). If the Obelisk Fragment is unexplored, flip all Stronghold Map Fragments (IV-V) and place the ${armyName(0)} Army on the Obelisk space. Add a Few Vampires creature to its army.`, 'cl-red');
+          fireEvent(3);
+        }
+        if (i === 3) line(lang === 'ru'
+          ? '- Разместите Дальний (II-III) и Ближний (IV-V) Фрагменты Подземелья, подготовленные ранее, как указано на слайде Карта (можно посмотреть по кнопке Карта). Расположите их как вам угодно. Они полностью исследованы.'
+          : '- Place the Far (II-III) and Near (IV-V) Dungeon Fragments prepared earlier, as indicated on the Map slide (you can view it via the Map button). Arrange them as you wish. They are fully explored.', 'cl-red');
+        if (i === 4) {
+          document.getElementById('necro-row').hidden = false;
+          line(lang === 'ru' ? '- Добавлена цель: Достигните Стартового Фрагмента Некрополь' : '- New objective added: Reach the Starting Necropolis Fragment', 'cl-red');
+          line(lang === 'ru' ? '- Разместите Армию Галтрана на заблокированной ячейке Ближайшего Фрагмента Карты (IV-V), рядом с Некрополем. Если Фрагмент не разведан — разведайте его сейчас.' : '- Place the Galthran Army on the locked space of the Near Map Fragment (IV-V), next to the Necropolis. If the Fragment is unexplored — explore it now.', 'cl-red');
+        }
+        if (i === 5) line(lang === 'ru' ? '- Битва с Армией Города' : '- Battle with the Town Army', 'cl-red');
       }
-            if (i === 1) line(lang === 'ru' ? `- Сразитесь с Армией ${armyName(0)}` : `- Fight the ${armyName(0)} Army`, 'cl-red');
-      if (i === 2) {
-        line(lang === 'ru' ? '- Получите +8 [руда] и +2 [очка передвижения] на этот раунд' : '- Gain +8 [Ore] and +2 [Movement Points] for this round', 'cl-red');
-        line(lang === 'ru'
-          ? `- Разместите Армию ${armyName(0)} на клетке Обелиска Ближних Фрагментов Карты Оплота (IV-V). Если Фрагмент с Обелиском не разведан, переверните все Фрагменты Карты Оплота (IV-V) и расположите на клетке Обелиска Армию ${armyName(0)}. Добавьте существо Few Vampires в её армию.`
-          : `- Place the ${armyName(0)} Army on the Obelisk space of the Near Stronghold Map Fragments (IV-V). If the Obelisk Fragment is unexplored, flip all Stronghold Map Fragments (IV-V) and place the ${armyName(0)} Army on the Obelisk space. Add a Few Vampires creature to its army.`, 'cl-red');
-        fireEvent(3);
+      if (slug === 'final-peace') {
+        if (i === 2) line(lang === 'ru' ? '- Разведайте один из Ближних тайлов (IV-V) Некрополя. Затем разведайте оба Ближних тайла (IV-V) Подземелья.' : '- Discover one of the Necropolis Near tiles (IV-V). Then discover both Dungeon Near tiles (IV-V).', 'cl-red');
+        if (i === 3) {
+          line(lang === 'ru' ? '- Обелиски Ближних тайлов Некрополя и Подземелья теперь телепортируют друг к другу.' : '- The Obelisks of the Necropolis and Dungeon Near tiles now teleport to each other.', 'cl-red');
+          if (ESC_EV && st.diff < 3) { st.diff += 1; diffLine.textContent = DIFF_NAMES[st.diff]; line(lang === 'ru' ? '- Уровень сложности увеличен' : '- Difficulty level increased', 'cl-red'); }
+        }
       }
-      if (i === 3) line(lang === 'ru'
-        ? '- Разместите Дальний (II-III) и Ближний (IV-V) Фрагменты Подземелья, подготовленные ранее, как указано на слайде Карта (можно посмотреть по кнопке Карта). Расположите их как вам угодно. Они полностью исследованы.'
-        : '- Place the Far (II-III) and Near (IV-V) Dungeon Fragments prepared earlier, as indicated on the Map slide (you can view it via the Map button). Arrange them as you wish. They are fully explored.', 'cl-red');
-      if (i === 4) {
-        document.getElementById('necro-row').hidden = false;
-        line(lang === 'ru' ? '- Добавлена цель: Достигните Стартового Фрагмента Некрополь' : '- New objective added: Reach the Starting Necropolis Fragment', 'cl-red');
-        line(lang === 'ru' ? '- Разместите Армию Галтрана на заблокированной ячейке Ближайшего Фрагмента Карты (IV-V), рядом с Некрополем. Если Фрагмент не разведан — разведайте его сейчас.' : '- Place the Galthran Army on the locked space of the Near Map Fragment (IV-V), next to the Necropolis. If the Fragment is unexplored — explore it now.', 'cl-red');
+      if (slug === 'agents-of-vengeance') {
+        if (i === 0) line(lang === 'ru' ? '- Войдя на поле Города стартового тайла Некрополя, прочтите раздел «И ЭТО ВСЁ?».' : '- When you enter the Town field on the Necropolis Starting tile, read the "Is That All?" section.', 'cl-red');
+                if (i === 1) {
+          line(lang === 'ru' ? '- Переверните стартовый тайл Некрополя (он исследован). Разместите Charna на центральном поле стартового тайла Некрополя.' : '- Flip the Necropolis Starting tile (discovered for you). Place Charna on the center field of the Necropolis Starting tile.', 'cl-red');
+        }
+                if (i === 2) {
+          line(lang === 'ru' ? '- Затем разведайте оба Дальних тайла Некрополя.' : '- Then Discover both Necropolis Far tiles.', 'cl-red');
+          line(lang === 'ru' ? '- Разместите Galthran на центральном поле одного из Дальних тайлов Некрополя, более дальнего от вашей модели; при равном расстоянии — на выбор.' : '- Place Galthran on the center field of the Necropolis Far tile further from your model; if equidistant, choose either.', 'cl-red');
+          if (!fired.has('choice4')) { fired.add('choice4'); document.getElementById('choice4-overlay').hidden = false; }
+        }
+        if (i === 3) {
+          line(lang === 'ru' ? '- Возьмите подготовленный Центральный тайл и добавьте его на карту, соединив хотя бы с одним Ближним тайлом Некрополя. Войдя на поле Dragon Utopia, прочтите «ЗАМОК КРИПТХОУМ».' : '- Take the prepared Center tile and add it to the map connected to at least one Necropolis Near tile. When you enter the Dragon Utopia field, read "Castle Crypthome".', 'cl-red');
+                    if (!fired.has('choice3')) { fired.add('choice3'); document.getElementById('choice3-overlay').hidden = false; }
+        }
+        if (i === 4) {
+          line(lang === 'ru' ? '- Бой с Армией Vidomina: поместите обе карты Specialty Сандро на Pack of Skeletons и выполните бесплатную атаку этим юнитом.' : "- Fight with Vidomina's Army: place both Sandro Specialty cards on the Pack of Skeletons and perform a free attack with this unit.", 'cl-red');
+          line(lang === 'ru' ? '- Гелу: 1 [урон] каждому врагу на боевом поле. Джем: 3 [урон] выбранному существу.' : '- Gelu: 1 [damage] to every enemy on the Combat board. Gem: 3 [damage] to the chosen enemy unit.', 'cl-red');
+        }
       }
-      if (i === 5) line(lang === 'ru' ? '- Битва с Армией Города' : '- Battle with the Town Army', 'cl-red');
       line(gc.endHint, 'cl-dim');
     }
+    if (pendingNext && overlay.hidden) { pendingNext = false; showNext(); }
   }
 
   function round1Lines() {
+    const rs = String(startRes).split(' ').map(Number);
+    const resLine = lang === 'ru'
+      ? `- Получите ${rs[0]} [золото], ${rs[1]} [руда]${rs[2] ? `, ${rs[2]} [кристалла]` : ''} начальных ресурсов.`
+      : `- Gain ${rs[0]} [gold], ${rs[1]} [Ore]${rs[2] ? `, ${rs[2]} [Crystals]` : ''} starting resources.`;
+        const blRaw = String(BONUS_LINES[st.bonus] || '');
+    const bl = blRaw.toLowerCase();
+    let bonusLine;
+    if (/артефакт|artifact/i.test(blRaw) && !/поиск|search/i.test(blRaw)) {
+      bonusLine = lang === 'ru'
+        ? '- Выбран бонус: Артефакт - Поиск (4) в колоде Артефактов'
+        : '- Bonus selected: Artifact - Search (4) the Artifact deck';
+    } else if (/улучш|бойцов|reinforce|upgrade/i.test(blRaw)) {
+      bonusLine = lang === 'ru'
+        ? '- Выбран бонус: Улучшите двух бойцов'
+        : '- Bonus selected: Reinforce two units';
+    } else if (/поиск|search/i.test(blRaw)) {
+      bonusLine = lang === 'ru'
+        ? `- Выбран бонус: ${blRaw} - совершите Поиск (2) в колоде заклинаний дважды.`
+        : `- Bonus selected: ${blRaw} - perform Search (2) on the Spell deck twice.`;
+    } else {
+      bonusLine = lang === 'ru' ? `- Выбран бонус: ${blRaw}` : `- Bonus selected: ${blRaw}`;
+    }
     return lang === 'ru' ? [
       '- Раунд 1 начался.',
       '- Проверьте необходимое количество карт в руке.',
-      '- Получите 14 [золото], 4 [руда] начальных ресурсов.',
+      resLine,
       `- Выбран уровень сложности: ${DIFF_NAMES[st.diff]} — ${DIFF_LINES[st.diff]}`,
-      `- Выбран бонус: ${BONUS_LINES[st.bonus]}`,
+      bonusLine,
     ] : [
       '- Round 1 has begun.',
       '- Check the required number of cards in hand.',
-      '- Gain 14 [gold], 4 [Ore] starting resources.',
+      resLine,
       `- Difficulty level selected: ${DIFF_NAMES[st.diff]} — ${DIFF_LINES[st.diff]}`,
-      `- Bonus selected: ${BONUS_LINES[st.bonus]}`,
+      bonusLine,
     ];
   }
 
@@ -342,7 +414,7 @@ for (let n = 2; n <= 11; n++) {
     document.getElementById('round-title').textContent = `${gc.round} ${n}`;
     document.getElementById('phase-turn').textContent = gc.yourTurn;
     roundType.textContent = n === 1 ? gc.startRoundLbl : (n % 2 === 0 ? gc.astroRound : gc.resourceRound);
-        document.querySelectorAll('.tcell').forEach((c) => {
+    document.querySelectorAll('.tcell').forEach((c) => {
       const nn = Number(c.getAttribute('data-n'));
       c.classList.toggle('current', nn === n);
       c.classList.toggle('passed', nn < n);
@@ -353,18 +425,24 @@ for (let n = 2; n <= 11; n++) {
       fireEvent(0);
     } else {
       line(gc.yourTurn, 'cl-gold cl-center');
-      const willOpen = (n === 5 && !read.has(1) && !fired.has(2)) || n === 7;
-      (SCRIPT[n]?.player || []).forEach((l) => emit(l));
-            if (n === 5 && !read.has(1) && !fired.has(2)) {
+      const willOpen = (RUINS_ROUND === n && !read.has(1) && !fired.has(2)) || (AUTO[n] || []).length > 0;
+      (SCRIPT[n] || []).forEach((l) => emit(l));
+      if (RUINS_ROUND && n === RUINS_ROUND && !read.has(1) && !fired.has(2)) {
         const ob = document.querySelector('[data-cond="obelisk"]');
-        if (ob && !done.has('obelisk')) { setIcon(ob, '✕', 'failed'); }
+        if (ob && !done.has('obelisk')) setIcon(ob, '✕', 'failed');
         line(lang === 'ru'
-          ? `- ${events[1].title} не прочтено: задание «Захватите Обелиск» заблокировано. Активируется ${events[2].title}.`
+          ? `- ${events[1].title} не прочтано: задание «Захватите Обелиск» заблокировано. Активируется ${events[2].title}.`
           : `- ${events[1].title} not read: the Capture the Obelisk quest is blocked. ${events[2].title} is activated.`, 'cl-red');
         fireEvent(2);
       }
-            if (n === 7) fireEvent(4);
-            if (ESC && n === ESC) {
+      if (PLACE_ROUND && n === PLACE_ROUND && !read.has(3) && !fired.has('place')) {
+        fired.add('place');
+        line(lang === 'ru'
+          ? `- Разместите Армию ${armyName(0)} в центре стартового тайла Некрополя и добавьте отряд Few Dread Knights в эту армию.`
+          : `- Place the ${armyName(0)} Army in the center of the Necropolis Starting tile and add a Few Dread Knights unit to this army.`, 'cl-red');
+      }
+      (AUTO[n] || []).forEach((ev) => fireEvent(ev));
+      if (ESC && n === ESC) {
         line(lang === 'ru' ? '- С этого раунда уровень сложности будет повышаться до конца игры' : '- From this round on, the difficulty level will increase until the end of the game', 'cl-red');
         if (st.diff < 3) { st.diff += 1; diffLine.textContent = DIFF_NAMES[st.diff]; }
       }
@@ -373,9 +451,18 @@ for (let n = 2; n <= 11; n++) {
         diffLine.textContent = DIFF_NAMES[st.diff];
         line(lang === 'ru' ? '- Уровень сложности увеличен' : '- Difficulty level increased', 'cl-red');
       }
-      if (!willOpen) line(gc.endHint, 'cl-dim');
+            if (!willOpen) line(gc.endHint, 'cl-dim');
+    }
+    if (slug === 'agents-of-vengeance') {
+      line(lang === 'ru'
+        ? '- Уровень сложности каждого боя на фрагментах карты Некрополя повышен на 1'
+        : '- The difficulty level of every Combat encounter on the Necropolis Map tiles is increased by one', 'cl-green');
+      if (n >= 3 && (read.has(1) || fired.has(1))) line(lang === 'ru'
+        ? '- При бое с Армией Charna увеличить атаку Wraiths на +1'
+        : "- In combat with Charna's Army, increase its Wraiths' attack by +1", 'cl-green');
     }
   }
+  
 
   function defeat() {
     document.getElementById('defeat-overlay').hidden = false;
@@ -391,20 +478,63 @@ for (let n = 2; n <= 11; n++) {
     btn.classList.add(cls);
     btn.disabled = true;
   }
+  function showNext() {
+    const ov = document.getElementById('next-scenario-overlay');
+    document.getElementById('next-title').textContent = gc.winMsg;
+    const btn = document.getElementById('next-btn');
+    if (NEXT) {
+      document.getElementById('next-text').textContent = lang === 'ru' ? 'Следующий сценарий кампании доступен.' : 'The next campaign scenario is available.';
+      btn.textContent = lang === 'ru' ? '→ Следующий сценарий' : '→ Next Scenario';
+      btn.href = base + lang + '/mission/' + NEXT + '/';
+    } else {
+      document.getElementById('next-text').textContent = lang === 'ru' ? 'Кампания завершена! Спасибо за игру.' : 'Campaign complete! Thank you for playing.';
+      btn.textContent = lang === 'ru' ? '→ К списку миссий' : '→ Mission list';
+      btn.href = base + lang + '/';
+    }
+    ov.hidden = false;
+  }
   function condClick(b) {
     const id = b.getAttribute('data-cond');
+    if (!id) return;
     if (done.has(id)) return;
     done.add(id);
     if (id.startsWith('lose_')) { setIcon(b, '✕', 'failed'); defeat(); return; }
     setIcon(b, '✓', 'done');
-    if (id === 'aislinn' || id === 'galthran') line(lang === 'ru' ? '- Получите +2 [кристала]' : '- Gain +2 [crystals]', 'cl-red');
+    if (id === 'aislinn' || id === 'galthran') line(lang === 'ru' ? '- Получите +2 [кристалла]' : '- Gain +2 [crystals]', 'cl-red');
     if (id === 'town') fireEvent(6);
+    const gidx = ['aislinn', 'galthran', 'town'].indexOf(id);
+    if (gidx >= 0) (goalTriggers || []).forEach(function (g) {
+      if (g.goal === gidx) {
+        if (g.line) line(g.line, 'cl-red');
+        fireEvent(g.event);
+      }
+    });
     if (id === 'obelisk') fireEvent(1);
     if (id === 'necro') fireEvent(5);
-    if (done.has('aislinn') && done.has('galthran') && done.has('town')) line(gc.winMsg, 'cl-gold');
+    if (['aislinn', 'galthran', 'town'].slice(0, goals.length).every((x) => done.has(x))) {
+      line(gc.winMsg, 'cl-gold');
+      if (!overlay.hidden) pendingNext = true;
+      else showNext();
+    }
     if (done.has('obelisk') && done.has('aislinn') && !fired.has('choice')) { fired.add('choice'); document.getElementById('choice-overlay').hidden = false; }
   }
   document.querySelectorAll('.cond-btn').forEach((b) => b.addEventListener('click', () => condClick(b)));
+  document.querySelectorAll('.cond-btn[data-trigger]').forEach((b) => b.addEventListener('click', () => {
+    if (b.classList.contains('done')) return;
+    setIcon(b, '✓', 'done');
+        const tr = triggers[Number(b.getAttribute('data-trigger'))];
+    if (!tr) return;
+       if (tr.doneId) {
+      done.add(tr.doneId);
+      line(lang === 'ru' ? '- Получите +2 [кристалла]' : '- Gain +2 [crystals]', 'cl-red');
+      if (tr.doneId === 'charna' && !fired.has('choice2')) {
+        fired.add('choice2');
+        document.getElementById('choice2-overlay').hidden = false;
+      }
+    }
+    if (tr.line && !(tr.hideIf && done.has(tr.hideIf))) line(tr.line, 'cl-red');
+    if (typeof tr.event === 'number' && tr.event >= 0) fireEvent(tr.event);
+  }));
 
   function choose(kind) {
     document.getElementById('choice-overlay').hidden = true;
@@ -415,6 +545,35 @@ for (let n = 2; n <= 11; n++) {
   }
   document.getElementById('choice-ore').addEventListener('click', () => choose('ore'));
   document.getElementById('choice-gold').addEventListener('click', () => choose('gold'));
+    function choose2(kind) {
+    document.getElementById('choice2-overlay').hidden = true;
+    line(kind === 'a'
+      ? (lang === 'ru' ? '- Выбрано: потерять 1 [очко передвижения] и получить [положительная мораль]' : '- Chosen: lose 1 [Movement Point] and gain [Positive Morale]')
+      : (lang === 'ru' ? '- Выбрано: получить [отрицательная мораль]' : '- Chosen: gain [Negative Morale]'), 'cl-red');
+  }
+  document.getElementById('choice2-a').addEventListener('click', () => choose2('a'));
+  document.getElementById('choice2-b').addEventListener('click', () => choose2('b'));
+
+  function choose3(kind) {
+    document.getElementById('choice3-overlay').hidden = true;
+    line(kind === 'a'
+      ? (lang === 'ru' ? '- Выбрано: +3 [кристалла]' : '- Chosen: +3 [Crystals]')
+      : kind === 'b'
+        ? (lang === 'ru' ? '- Выбрано: +10 [золота]' : '- Chosen: +10 [Gold]')
+        : (lang === 'ru' ? '- Выбрано: Поиск (4) в колоде артефактов' : '- Chosen: Search (4) the Artifact deck'), 'cl-red');
+  }
+  document.getElementById('choice3-a').addEventListener('click', () => choose3('a'));
+  document.getElementById('choice3-b').addEventListener('click', () => choose3('b'));
+  document.getElementById('choice3-c').addEventListener('click', () => choose3('c'));
+
+  function choose4(kind) {
+    document.getElementById('choice4-overlay').hidden = true;
+    line(kind === 'a'
+      ? (lang === 'ru' ? '- Выбрано: усилен серебряный отряд — переверните на Few; усилен бронзовый — сбросьте' : '- Chosen: a silver unit is reinforced — flip to Few; a bronze unit — discard it')
+      : (lang === 'ru' ? '- Выбрано: ни одно условие не подходит — эффект игнорируется' : '- Chosen: none of the conditions apply — the effect is ignored'), 'cl-red');
+  }
+  document.getElementById('choice4-a').addEventListener('click', () => choose4('a'));
+  document.getElementById('choice4-b').addEventListener('click', () => choose4('b'));
   document.getElementById('defeat-close').addEventListener('click', () => { document.getElementById('defeat-overlay').hidden = true; });
   document.getElementById('defeat-restart').addEventListener('click', () => { window.location.reload(); });
   document.getElementById('defeat-sound').addEventListener('click', () => {
@@ -422,12 +581,7 @@ for (let n = 2; n <= 11; n++) {
     v.muted = false;
     v.play().catch(() => {});
   });
-    document.getElementById('info-close')?.addEventListener('click', () => { document.getElementById('info-overlay').hidden = true; });
-  document.getElementById('bgm-toggle').addEventListener('click', () => {
-    const b = document.getElementById('bgm');
-    b.muted = !b.muted;
-    document.getElementById('bgm-toggle').textContent = b.muted ? '🔇' : '🔊';
-  });
+  document.getElementById('next-close').addEventListener('click', () => { document.getElementById('next-scenario-overlay').hidden = true; });
 
   window.addEventListener('game:start', (e) => {
     st.diff = e.detail?.diff ?? 0;
@@ -442,7 +596,10 @@ for (let n = 2; n <= 11; n++) {
   });
 
   document.getElementById('eo-close').addEventListener('click', closeEvent);
-  document.getElementById('eo-audio').addEventListener('click', () => audio.play().catch(() => {}));
+  document.getElementById('eo-audio').addEventListener('click', () => {
+    if (audio.paused) { audio.currentTime = 0; audio.play().catch(() => {}); }
+    else audio.pause();
+  });
   document.querySelectorAll('.ev-btn').forEach((b) => {
     b.classList.add('locked');
     b.addEventListener('click', () => {
@@ -455,15 +612,29 @@ for (let n = 2; n <= 11; n++) {
     if (phase === 'player') {
       phase = 'ai';
       document.getElementById('phase-turn').textContent = gc.aiTurn;
-           line(gc.aiTurn, 'cl-ai cl-center');
+      line(gc.aiTurn, 'cl-ai cl-center');
       line(lang === 'ru' ? `- Раунд ${round}` : `- Round ${round}`, 'cl-ai');
       line(lang === 'ru' ? 'Ходит ИИ. Правила перемещения и сражения смотри по кнопке ИИ' : 'AI turns. For movement and combat rules, see the AI button.', 'cl-ai');
-      if (!done.has('aislinn')) line(lang === 'ru'
-        ? `- Ходит ${armyName(0)}: 3 [очка перемещения] + 1 [очка перемещения] (Rogues)`
-        : `- ${armyName(0)} Army turns: 3 [Movement Points] + 1 [Movement Points] (Rogues)`, 'cl-ai');
-      if (!done.has('galthran')) line(lang === 'ru'
-        ? `- Ходит ${armyName(1)}: 3 [очка перемещения]`
-        : `- ${armyName(1)} Army turns: 3 [Movement Points]`, 'cl-ai');
+      if (slug === 'search-for-a-killer') {
+        const rogues = String(aiArmy0).includes('Rogues');
+        if (!done.has('aislinn')) line(lang === 'ru'
+          ? `- Ходит Армия ${armyName(0)}: 3 [очка перемещения]${rogues ? ' + 1 [очка перемещения] (Rogues)' : ''}`
+          : `- ${armyName(0)} Army turns: 3 [Movement Points]${rogues ? ' + 1 [Movement Points] (Rogues)' : ''}`, 'cl-ai');
+        if (goals[1] && !done.has('galthran')) line(lang === 'ru'
+          ? `- Ходит Армия ${armyName(1)}: 3 [очка перемещения]`
+          : `- ${armyName(1)} Army turns: 3 [Movement Points]`, 'cl-ai');
+      } else if (slug === 'final-peace' && round >= 7 && !read.has(3) && !done.has('aislinn')) {
+        line(lang === 'ru'
+          ? `- Ходит Армия ${armyName(0)}: 3 [очка перемещения] (до активации события «Старые друзья»)`
+          : `- ${armyName(0)} Army turns: 3 [Movement Points] (until "Old Friends" is activated)`, 'cl-ai');
+      } else if (slug === 'agents-of-vengeance') {
+        if (round >= 3 && !done.has('charna')) line(lang === 'ru'
+          ? '- Ходит Армия Charna: 3 [очка перемещения]'
+          : '- Charna Army turns: 3 [Movement Points]', 'cl-ai');
+        if (round >= 7 && !done.has('galthran')) line(lang === 'ru'
+          ? '- Ходит Армия Galthran: 3 [очка перемещения]'
+          : '- Galthran Army turns: 3 [Movement Points]', 'cl-ai');
+      }
       line(gc.endHint, 'cl-dim');
     } else {
       if (round >= MAX_ROUND) defeat();
@@ -483,10 +654,10 @@ for (let n = 2; n <= 11; n++) {
     toConsole.hidden = false;
   }
   document.getElementById('g-btn-map').addEventListener('click', () => showSetup('map'));
-    function openPdf(path) {
+  function openPdf(path) {
     const ov = document.getElementById('pdf-overlay');
     const fr = document.getElementById('pdf-frame');
-    if (ov && fr) { fr.src = base + path; ov.hidden = false; }
+    if (ov && fr) { fr.src = base + path; ov.hidden = false; fr.style.display = ''; }
     else window.open(base + path, '_blank');
   }
   document.getElementById('g-btn-heroes').addEventListener('click', () => openPdf('docs/info-' + lang + '.pdf'));
@@ -498,6 +669,11 @@ for (let n = 2; n <= 11; n++) {
   document.getElementById('pdf-close')?.addEventListener('click', () => {
     document.getElementById('pdf-overlay').hidden = true;
     document.getElementById('pdf-frame').src = '';
+  });
+  document.getElementById('bgm-toggle').addEventListener('click', () => {
+    const b = document.getElementById('bgm');
+    b.muted = !b.muted;
+    document.getElementById('bgm-toggle').textContent = b.muted ? '🔇' : '🔊';
   });
   toConsole.addEventListener('click', () => {
     stage.style.display = 'none'; sidebar.style.display = 'none';

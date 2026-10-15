@@ -2,35 +2,40 @@
 title: "1. Поиск Убийцы"
 lang: "ru"
 difficulty: "impossible"
+order: 1
+faction: 1
+assets: "sfak"
+audioDir: "events"
 description: "Когда обнаруживают тела двух лордов АвЛи, Джем и Гелу отправляются в свой мстительный поход за справедливостью. Однако их судьба неожиданно приводит их к обнаружению гораздо большего, чем они надеялись. Удастся ли им сорвать зловещий заговор, назревающий на границах АвЛи, или же ужасная находка пришла слишком поздно, чтобы остановить планы некромантов?"
-
+escalation: 7
 goals:
   - "Армия Эйслин"
   - "Армия Галтрана"
   - "Армия Города"
-
 loseConditions:
   - "Потерять Фракционный Город"
   - "Потерпеть поражение от Вражеской Армии"
   - "Не победить до конца 11-го Раунда"
-
 additionalRules:
   - "Вражеские Герои ходят после Игрока"
   - "Можете перемещаться на поле с Вражеским Героем"
   - "После победы над Вражеским Героем, получите 2 кристала"
   - "После посещения Обелиска открывается событие, если посещаете второй Обелиск, бросьте 2 кубика Сокровищ и выберите один"
-
 mapSettings:
   starting: "1 х Некрополь(S1), 2 x Оплот(S4)"
   far: "2 x Оплот(F10 – F12)"
   near: "1 х Некрополь(N1, N4), 2 x Оплот(N7, N8)"
   additional: "1 х случайный дальний фрагмент Подземелья(F2, F5, F8), 1 x случайный ближний фрагмент Подземелья(N2, N5)"
-
 mainTown:
-  buildings: "Citadel, Housing Estate, Spring upon Arches"
+  buildings:
+    - name: "Citadel"
+      icon: "citadel"
+    - name: "Housing Estate"
+      icon: "bronze"
+    - name: "Spring upon Arches"
+      icon: "silver"
   production: "15 0 0"
   startingResources: "14 4 0"
-
 mainHero:
   army: "Few Centaurs, Few Dwarves, Few Elves"
   handDeck:
@@ -41,7 +46,6 @@ mainHero:
     - "1 x Sharpshooters Specialty"
     - "1 x Archery Ability"
     - "1 x Magic Arrow Spell"
-escalation: 7
 aiSettings:
   - name: "Галтрана"
     army: "Pack Skeletons, Pack Zombies, Few Liches, Rogues"

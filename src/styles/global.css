@@ -1364,4 +1364,62 @@ body {
     font-size: .9rem;
     flex-shrink: 0
 }
-/* test */
+/* =====================================================
+   ДОПОЛНЕНИЯ КАМПАНИИ (единственный блок правок)
+   ===================================================== */
+
+/* Перенос строк в «Дополнительно» на слайде КАРТА */
+.map-add .game-list, .map-add .game-list li { white-space: normal !important; }
+
+/* Линейка замков на страницах миссий: 13 превью 46×32 */
+.filmstrip {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  gap: 3px !important;
+  height: auto !important;
+  max-height: calc(100vh - 56px) !important;
+  overflow: visible !important;
+  z-index: 55;
+}
+.filmstrip .faction-slot { position: relative !important; flex: 0 0 auto !important; margin: 0 !important; width: 46px !important; }
+.filmstrip .thumb,
+.filmstrip div.faction-slot img,
+.filmstrip div.faction-slot span {
+  width: 46px !important;
+  height: 32px !important;
+  object-fit: cover !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Оверлеи (события, выбор, поражение, финал, PDF): центровка + скролл */
+.event-overlay {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  overflow: auto !important;
+  padding: 18px 0 !important;
+}
+.event-overlay[hidden] { display: none !important; }
+.event-overlay .eo-window {
+  margin: auto !important;
+  max-height: calc(100vh - 36px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.event-overlay .eo-text { overflow-y: auto !important; flex: 1 1 auto !important; min-height: 0 !important; }
+.event-overlay .eo-controls { flex: 0 0 auto !important; }
+
+/* Зелёные напоминания в консоли */
+.cl-green { color: #8ce28c; }
+
+/* Стрелки слайда ГЕРОЙ не наезжают на контент */
+#pane-hero .visual { padding-left: 64px; padding-right: 64px; box-sizing: border-box; }
+#pane-hero .visual .nav-arrow { z-index: 6; }
+#pane-hero .hero-grid { max-width: 100%; min-width: 0; }
+#pane-hero .cards-row { flex-wrap: wrap; justify-content: center; }
